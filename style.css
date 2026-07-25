@@ -1,0 +1,86 @@
+/* Motion - floating panel + animation gallery. Fixed dark zinc theme. */
+
+#motion-toolbar-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; cursor: pointer; opacity: 0.9;
+    font-size: 16px; color: #d4d4d8; border-radius: 6px; text-decoration: none;
+    transition: opacity 0.15s, color 0.15s;
+}
+#motion-toolbar-btn:hover { opacity: 1; color: #fff; }
+
+.motion-panel {
+    --z950:#09090b; --z900:#18181b; --z800:#27272a; --z700:#3f3f46;
+    --z600:#52525b; --z500:#71717a; --z400:#a1a1aa; --z300:#d4d4d8; --white:#fff;
+    --accent:#a78bfa;
+    position: fixed; z-index: 10050; top: 56px; right: 16px;
+    width: 340px; max-height: 84vh; display: flex; flex-direction: column;
+    background: var(--z900); color: var(--z300);
+    border: 1px solid var(--z800); border-radius: 14px; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    font-size: 13px;
+    box-shadow: 0 24px 50px -12px rgba(0,0,0,0.7), 0 8px 20px -8px rgba(0,0,0,0.5);
+}
+
+.mo-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 1px solid var(--z800);
+}
+.mo-brand { font-weight: 700; color: var(--white); letter-spacing: -0.01em; }
+.mo-brand::first-letter { color: var(--accent); }
+.mo-target { font-size: 11px; color: var(--z500); font-family: ui-monospace, Menlo, monospace; }
+
+.mo-controls { padding: 12px 14px; border-bottom: 1px solid var(--z800); display: flex; flex-direction: column; gap: 10px; }
+.mo-row { display: flex; align-items: center; gap: 10px; }
+.mo-row > label { width: 62px; color: var(--z400); font-size: 12px; flex: 0 0 62px; }
+.mo-dur { flex: 1; accent-color: var(--accent); }
+.mo-dur-val { width: 52px; text-align: right; color: var(--z300); font-variant-numeric: tabular-nums; }
+.mo-easing {
+    flex: 1; background: var(--z800); color: var(--z300); border: 1px solid var(--z700);
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; -webkit-appearance: none; appearance: none;
+}
+.mo-trg-group { display: flex; gap: 4px; background: var(--z800); border-radius: 9px; padding: 3px; flex: 1; }
+.mo-trg { flex: 1; border: none; background: transparent; color: var(--z400); padding: 5px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; text-transform: capitalize; }
+.mo-trg:hover { color: var(--z300); }
+.mo-trg.on { background: var(--z700); color: var(--white); }
+
+.mo-gallery { padding: 12px 14px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mo-tile {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px 10px;
+    background: var(--z800); border: 1px solid transparent; border-radius: 10px; cursor: pointer;
+    color: var(--z300); transition: border-color 0.14s, transform 0.14s, background 0.14s;
+}
+.mo-tile:hover { border-color: var(--accent); transform: translateY(-1px); background: var(--z700); }
+.mo-tile-label { font-size: 12px; font-weight: 600; }
+.mo-demo { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); display: block; }
+.mo-tile:hover .mo-demo { animation-duration: .9s; animation-iteration-count: 1; animation-fill-mode: both; }
+.mo-tile:hover .mo-demo-fade-in { animation-name: mo-p-fade; }
+.mo-tile:hover .mo-demo-fade-up { animation-name: mo-p-up; }
+.mo-tile:hover .mo-demo-fade-down { animation-name: mo-p-down; }
+.mo-tile:hover .mo-demo-slide-left { animation-name: mo-p-left; }
+.mo-tile:hover .mo-demo-slide-right { animation-name: mo-p-right; }
+.mo-tile:hover .mo-demo-zoom-in { animation-name: mo-p-zoom; }
+.mo-tile:hover .mo-demo-pop { animation-name: mo-p-pop; }
+.mo-tile:hover .mo-demo-bounce-in { animation-name: mo-p-bounce; }
+.mo-tile:hover .mo-demo-pulse { animation: mo-p-pulse .9s ease-in-out infinite; }
+.mo-tile:hover .mo-demo-shake { animation: mo-p-shake .6s both; }
+.mo-tile:hover .mo-demo-float { animation: mo-p-float 2s ease-in-out infinite; }
+.mo-tile:hover .mo-demo-spin { animation: mo-p-spin 1s linear infinite; }
+@keyframes mo-p-fade { from{opacity:0} to{opacity:1} }
+@keyframes mo-p-up { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+@keyframes mo-p-down { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:none} }
+@keyframes mo-p-left { from{opacity:0;transform:translateX(12px)} to{opacity:1;transform:none} }
+@keyframes mo-p-right { from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:none} }
+@keyframes mo-p-zoom { from{opacity:0;transform:scale(.7)} to{opacity:1;transform:scale(1)} }
+@keyframes mo-p-pop { 0%{transform:scale(.7)} 60%{transform:scale(1.15)} 100%{transform:scale(1)} }
+@keyframes mo-p-bounce { 0%{transform:translateY(10px)} 60%{transform:translateY(-6px)} 100%{transform:none} }
+@keyframes mo-p-pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.18)} }
+@keyframes mo-p-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+@keyframes mo-p-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+@keyframes mo-p-spin { to{transform:rotate(360deg)} }
+
+.mo-status { padding: 8px 14px; font-size: 12px; color: var(--accent); min-height: 16px; border-top: 1px solid var(--z800); }
+.mo-status:empty { display: none; }
+
+#motion-panel input, #motion-panel select, #motion-panel button {
+    font-family: inherit;
+}

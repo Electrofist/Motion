@@ -1,0 +1,25 @@
+{
+    "title": "Motion",
+    "name": "github-electrofist-motion",
+    "description": "Apply CSS animations to any element visually, right from the Live Preview. Pick an element, choose an animation, and Motion writes clean keyframes + a class into your code.",
+    "version": "1.0.0",
+    "license": "MIT",
+    "author": "Krrish (https://github.com/Electrofist)",
+    "homepage": "https://github.com/Electrofist/Motion",
+    "engines": {
+        "brackets": ">=2.0.0"
+    },
+    "scripts": {
+        "test": "node test/motion.test.js",
+        "check": "node --check main.js && node test/motion.test.js"
+    },
+    "categories": "editing",
+    "keywords": [
+        "phcode", "extension", "animation", "css", "keyframes", "motion",
+        "live-preview", "transitions", "interaction"
+    ],
+    "files": [
+        "main.js",
+        "style.css"
+    ]
+}
