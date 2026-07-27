@@ -54,21 +54,23 @@
     background: var(--z900); font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
     text-transform: uppercase; color: var(--z500);
 }
-.mo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-bottom: 6px; }
+.mo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 8px; padding-bottom: 6px; }
 
+/* No outer card — each item is just a square thumbnail + label. */
 .mo-tile {
-    display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px 10px;
-    background: var(--z800); border: 1px solid var(--z700); border-radius: 10px; cursor: pointer;
-    color: var(--z300); transition: border-color 0.14s, transform 0.14s, background 0.14s;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0;
+    background: transparent; border: none; cursor: pointer; color: var(--z300);
 }
-.mo-tile:hover { border-color: var(--accent); transform: translateY(-1px); background: var(--z700); }
-.mo-tile-label { font-size: 12px; font-weight: 600; }
+.mo-tile-label { font-size: 11px; font-weight: 600; text-align: center; }
+.mo-tile:hover .mo-tile-label { color: var(--white); }
 
-/* Thumbnail = static glyph that shows what the animation does. */
+/* Thumbnail = small square box holding the glyph that shows what the animation does. */
 .mo-thumb {
-    width: 100%; height: 56px; display: flex; align-items: center; justify-content: center;
-    background: var(--z900); border-radius: 8px; color: var(--accent);
+    width: 100%; aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center;
+    background: var(--z800); border: 1px solid var(--z700); border-radius: 10px; color: var(--accent);
+    transition: border-color 0.14s, background 0.14s, transform 0.14s;
 }
+.mo-tile:hover .mo-thumb { border-color: var(--accent); background: var(--z700); transform: translateY(-1px); }
 .mo-glyph { display: block; }
 .mo-blk { transform-box: fill-box; transform-origin: center; }
 
