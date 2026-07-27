@@ -43,28 +43,49 @@
 .mo-trg:hover { color: var(--z300); }
 .mo-trg.on { background: var(--z700); color: var(--white); }
 
-.mo-gallery { padding: 12px 14px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* Gallery is the single scroll region; header + controls stay pinned. */
+.mo-gallery { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px 14px 14px; }
+.mo-gallery::-webkit-scrollbar { width: 10px; }
+.mo-gallery::-webkit-scrollbar-thumb { background: var(--z700); border: 3px solid var(--z900); border-radius: 8px; }
+.mo-gallery::-webkit-scrollbar-thumb:hover { background: var(--z600); }
+
+.mo-cat {
+    position: sticky; top: 0; z-index: 1; margin: 0 -14px; padding: 10px 14px 6px;
+    background: var(--z900); font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--z500);
+}
+.mo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-bottom: 6px; }
+
 .mo-tile {
-    display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px 10px;
-    background: var(--z800); border: 1px solid transparent; border-radius: 10px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px 10px;
+    background: var(--z800); border: 1px solid var(--z700); border-radius: 10px; cursor: pointer;
     color: var(--z300); transition: border-color 0.14s, transform 0.14s, background 0.14s;
 }
 .mo-tile:hover { border-color: var(--accent); transform: translateY(-1px); background: var(--z700); }
 .mo-tile-label { font-size: 12px; font-weight: 600; }
-.mo-demo { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); display: block; }
-.mo-tile:hover .mo-demo { animation-duration: .9s; animation-iteration-count: 1; animation-fill-mode: both; }
-.mo-tile:hover .mo-demo-fade-in { animation-name: mo-p-fade; }
-.mo-tile:hover .mo-demo-fade-up { animation-name: mo-p-up; }
-.mo-tile:hover .mo-demo-fade-down { animation-name: mo-p-down; }
-.mo-tile:hover .mo-demo-slide-left { animation-name: mo-p-left; }
-.mo-tile:hover .mo-demo-slide-right { animation-name: mo-p-right; }
-.mo-tile:hover .mo-demo-zoom-in { animation-name: mo-p-zoom; }
-.mo-tile:hover .mo-demo-pop { animation-name: mo-p-pop; }
-.mo-tile:hover .mo-demo-bounce-in { animation-name: mo-p-bounce; }
-.mo-tile:hover .mo-demo-pulse { animation: mo-p-pulse .9s ease-in-out infinite; }
-.mo-tile:hover .mo-demo-shake { animation: mo-p-shake .6s both; }
-.mo-tile:hover .mo-demo-float { animation: mo-p-float 2s ease-in-out infinite; }
-.mo-tile:hover .mo-demo-spin { animation: mo-p-spin 1s linear infinite; }
+
+/* Thumbnail = static glyph that shows what the animation does. */
+.mo-thumb {
+    width: 100%; height: 56px; display: flex; align-items: center; justify-content: center;
+    background: var(--z900); border-radius: 8px; color: var(--accent);
+}
+.mo-glyph { display: block; }
+.mo-blk { transform-box: fill-box; transform-origin: center; }
+
+/* On hover, the tile also live-animates its own glyph block for a quick in-place preview. */
+.mo-tile:hover .mo-blk { animation-duration: .9s; animation-iteration-count: 1; animation-fill-mode: both; }
+.mo-tile[data-anim="fade-in"]:hover     .mo-blk { animation-name: mo-p-fade; }
+.mo-tile[data-anim="fade-up"]:hover     .mo-blk { animation-name: mo-p-up; }
+.mo-tile[data-anim="fade-down"]:hover   .mo-blk { animation-name: mo-p-down; }
+.mo-tile[data-anim="slide-left"]:hover  .mo-blk { animation-name: mo-p-left; }
+.mo-tile[data-anim="slide-right"]:hover .mo-blk { animation-name: mo-p-right; }
+.mo-tile[data-anim="zoom-in"]:hover     .mo-blk { animation-name: mo-p-zoom; }
+.mo-tile[data-anim="pop"]:hover         .mo-blk { animation-name: mo-p-pop; }
+.mo-tile[data-anim="bounce-in"]:hover   .mo-blk { animation-name: mo-p-bounce; }
+.mo-tile[data-anim="pulse"]:hover  .mo-blk { animation: mo-p-pulse .9s ease-in-out infinite; }
+.mo-tile[data-anim="shake"]:hover  .mo-blk { animation: mo-p-shake .6s both; }
+.mo-tile[data-anim="float"]:hover  .mo-blk { animation: mo-p-float 2s ease-in-out infinite; }
+.mo-tile[data-anim="spin"]:hover   .mo-blk { animation: mo-p-spin 1s linear infinite; }
 @keyframes mo-p-fade { from{opacity:0} to{opacity:1} }
 @keyframes mo-p-up { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
 @keyframes mo-p-down { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:none} }

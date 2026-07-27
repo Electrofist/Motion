@@ -51,6 +51,73 @@ define(function (require, exports, module) {
     var ATTENTION = { pulse: 1, shake: 1, float: 1, spin: 1 };
     function animById(id) { for (var i = 0; i < ANIMS.length; i++) { if (ANIMS[i].id === id) { return ANIMS[i]; } } return null; }
 
+    // Static "what does this do" glyph per animation (drawn like the gallery reference:
+    // a solid accent block + faded ghost trail + direction arrows). Uses currentColor so
+    // the tile controls the hue; ghosts use opacity. viewBox is 44x44. The main block is
+    // tagged .mo-blk so the tile can also live-animate it on hover.
+    var A = 'stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+    var GLYPHS = {
+        "fade-in":
+            '<rect x="14" y="13" width="5" height="18" rx="2" fill="currentColor" opacity=".28"/>' +
+            '<rect x="20" y="13" width="5" height="18" rx="2" fill="currentColor" opacity=".58"/>' +
+            '<rect class="mo-blk" x="26" y="13" width="5" height="18" rx="2" fill="currentColor"/>',
+        "fade-up":
+            '<rect x="15" y="21" width="14" height="6" rx="3" fill="currentColor" opacity=".25"/>' +
+            '<rect x="15" y="14" width="14" height="6" rx="3" fill="currentColor" opacity=".5"/>' +
+            '<rect class="mo-blk" x="15" y="7" width="14" height="6" rx="3" fill="currentColor"/>' +
+            '<path d="M36 27V15m0 0l-3 3m3-3l3 3" ' + A + '/>',
+        "fade-down":
+            '<rect x="15" y="7" width="14" height="6" rx="3" fill="currentColor" opacity=".25"/>' +
+            '<rect x="15" y="14" width="14" height="6" rx="3" fill="currentColor" opacity=".5"/>' +
+            '<rect class="mo-blk" x="15" y="21" width="14" height="6" rx="3" fill="currentColor"/>' +
+            '<path d="M36 11v12m0 0l-3-3m3 3l3-3" ' + A + '/>',
+        "slide-right":
+            '<rect x="9" y="16" width="13" height="13" rx="3" fill="currentColor" opacity=".25"/>' +
+            '<rect x="14" y="16" width="13" height="13" rx="3" fill="currentColor" opacity=".5"/>' +
+            '<rect class="mo-blk" x="19" y="16" width="13" height="13" rx="3" fill="currentColor"/>' +
+            '<path d="M15 35h12m0 0l-3-3m3 3l-3 3" ' + A + '/>',
+        "slide-left":
+            '<rect x="22" y="16" width="13" height="13" rx="3" fill="currentColor" opacity=".25"/>' +
+            '<rect x="17" y="16" width="13" height="13" rx="3" fill="currentColor" opacity=".5"/>' +
+            '<rect class="mo-blk" x="12" y="16" width="13" height="13" rx="3" fill="currentColor"/>' +
+            '<path d="M29 35H17m0 0l3-3m-3 3l3 3" ' + A + '/>',
+        "zoom-in":
+            '<rect class="mo-blk" x="15" y="15" width="14" height="14" rx="3" fill="currentColor"/>' +
+            '<path d="M13 13L8 8m0 0v4m0-4h4" ' + A + '/>' +
+            '<path d="M31 13l5-5m0 0v4m0-4h-4" ' + A + '/>' +
+            '<path d="M13 31l-5 5m0 0v-4m0 4h4" ' + A + '/>' +
+            '<path d="M31 31l5 5m0 0v-4m0 4h-4" ' + A + '/>',
+        "pop":
+            '<path d="M11 17c-2.4 2.4-2.4 8 0 10.5" ' + A + ' opacity=".7"/>' +
+            '<path d="M7 14c-3.6 3.6-3.6 12.5 0 16" ' + A + ' opacity=".35"/>' +
+            '<path d="M33 17c2.4 2.4 2.4 8 0 10.5" ' + A + ' opacity=".7"/>' +
+            '<path d="M37 14c3.6 3.6 3.6 12.5 0 16" ' + A + ' opacity=".35"/>' +
+            '<rect class="mo-blk" x="15" y="14" width="14" height="16" rx="4" fill="currentColor"/>' +
+            '<rect x="19.5" y="18.5" width="5" height="7" rx="1.5" fill="var(--z900)"/>',
+        "bounce-in":
+            '<rect x="15" y="9" width="14" height="6" rx="3" fill="currentColor" opacity=".3"/>' +
+            '<rect class="mo-blk" x="15" y="20" width="14" height="7" rx="3" fill="currentColor"/>' +
+            '<path d="M36 27V14m0 0l-3 3m3-3l3 3" ' + A + '/>',
+        "pulse":
+            '<rect x="11" y="11" width="22" height="22" rx="6" ' + A + ' opacity=".3"/>' +
+            '<rect x="15" y="15" width="14" height="14" rx="4" ' + A + ' opacity=".55"/>' +
+            '<rect class="mo-blk" x="18" y="18" width="8" height="8" rx="2.5" fill="currentColor"/>',
+        "shake":
+            '<rect class="mo-blk" x="15" y="14" width="14" height="14" rx="3" fill="currentColor"/>' +
+            '<path d="M11 21H5m0 0l3-3m-3 3l3 3" ' + A + '/>' +
+            '<path d="M33 21h6m0 0l-3-3m3 3l-3 3" ' + A + '/>',
+        "float":
+            '<rect class="mo-blk" x="14" y="15" width="14" height="14" rx="3" fill="currentColor"/>' +
+            '<path d="M36 11v22m0-22l-3 3m3-3l3 3m-3 16l-3-3m3 3l3-3" ' + A + '/>',
+        "spin":
+            '<rect class="mo-blk" x="16" y="16" width="12" height="12" rx="3" fill="currentColor"/>' +
+            '<path d="M31 15a12 12 0 1 0 4 8" ' + A + '/>' +
+            '<path d="M35 14v6h-6" ' + A + '/>'
+    };
+    function glyphSvg(id) {
+        return '<svg class="mo-glyph" viewBox="0 0 44 44" width="44" height="44" aria-hidden="true">' + (GLYPHS[id] || '') + '</svg>';
+    }
+
     var EASINGS = ["ease", "ease-out", "ease-in", "ease-in-out", "linear", "cubic-bezier(.34,1.56,.64,1)"];
 
     // ============================================================
@@ -240,11 +307,20 @@ define(function (require, exports, module) {
             '<div class="mo-row"><label>Trigger</label><div class="mo-trg-group">' + trg + '</div></div>'
         );
     }
+    function tileHtml(a) {
+        return '<button class="mo-tile" data-anim="' + a.id + '" title="' + a.label + '">' +
+            '<span class="mo-thumb">' + glyphSvg(a.id) + '</span>' +
+            '<span class="mo-tile-label">' + a.label + '</span></button>';
+    }
+    var CATS = [
+        { key: "entrance",  label: "Entrance" },
+        { key: "attention", label: "Attention" }
+    ];
     function renderGallery() {
-        var html = ANIMS.map(function (a) {
-            return '<button class="mo-tile" data-anim="' + a.id + '" title="' + a.label + '">' +
-                '<span class="mo-demo mo-demo-' + a.id + '"></span>' +
-                '<span class="mo-tile-label">' + a.label + '</span></button>';
+        var html = CATS.map(function (c) {
+            var tiles = ANIMS.filter(function (a) { return a.cat === c.key; }).map(tileHtml).join("");
+            if (!tiles) { return ""; }
+            return '<div class="mo-cat">' + c.label + '</div><div class="mo-grid">' + tiles + '</div>';
         }).join("");
         $panel.find(".mo-gallery").html(html);
     }
