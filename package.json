@@ -2,10 +2,11 @@
     "title": "Motion",
     "name": "github-electrofist-motion",
     "description": "Apply CSS animations to any element visually, right from the Live Preview. Pick an element, choose an animation, and Motion writes clean keyframes + a class into your code.",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "license": "MIT",
     "author": "Krrish (https://github.com/Electrofist)",
     "homepage": "https://github.com/Electrofist/Motion",
+    "icon": "logo.png",
     "engines": {
         "brackets": ">=2.0.0"
     },
@@ -20,6 +21,7 @@
     ],
     "files": [
         "main.js",
-        "style.css"
+        "style.css",
+        "logo.png"
     ]
 }

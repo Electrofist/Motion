@@ -16,10 +16,9 @@ jobs:
 
       - name: Build extension.zip
         # Zip the files Phoenix needs at runtime, matching the "files" array in
-        # package.json. logo.png (toolbar icon) and hero.jpg (tutorial banner)
-        # MUST be included or the store build renders no icon/banner. Add LICENSE
-        # for good citizenship.
-        run: zip -r extension.zip main.js style.css package.json LICENSE
+        # package.json. logo.png (store/toolbar icon) MUST be included or the store
+        # build renders no icon. Add LICENSE + README for good citizenship.
+        run: zip -r extension.zip main.js style.css package.json logo.png LICENSE README.md
 
       - name: Attach extension.zip to the release
         env:
