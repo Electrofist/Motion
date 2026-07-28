@@ -295,6 +295,7 @@ define(function (require, exports, module) {
             // 3) scroll trigger needs the observer helper once
             if (css.scroll) { ensureObserver(doc); }
         });
+        clearTrial(); // the real class now drives it; drop the transient preview
         flash("Applied " + anim.label + " to <" + sel.tag + ">");
         refreshSelMeta();
         updateSelbar();
@@ -370,12 +371,24 @@ define(function (require, exports, module) {
     function replaceByOffset(doc, start, end, str) { doc.replaceRange(str, posFromOffset(doc, start), posFromOffset(doc, end)); }
 
     // Preview an animation live without touching source (best-effort via LiveDevProtocol).
+    // Remove any lingering preview from every element (the trial is a transient,
+    // single-element effect — it must never accumulate across selections).
+    function clearTrial() {
+        if (!LiveDevProtocol || !LiveDevProtocol.evaluate) { return; }
+        try {
+            LiveDevProtocol.evaluate('(function(){var l=document.querySelectorAll(".__mo-trial");for(var i=0;i<l.length;i++){l[i].classList.remove("__mo-trial");}var s=document.getElementById("mo-trial");if(s){s.parentNode.removeChild(s);}})();');
+        } catch (e) { /* ignore */ }
+    }
+
     function trial(anim, opts) {
         if (!LiveDevProtocol || !LiveDevProtocol.evaluate) { flash("Open Live Preview to trial."); return; }
         var sel = resolveSelection();
         if (!sel) { return; }
         var css = animCss(anim, opts);
-        var js = '(function(){var el=document.querySelector(\'[data-brackets-id="' + (sel.tagId != null ? sel.tagId : (sel.mark ? sel.mark.tagID : "")) + '"]\');' +
+        var id = sel.tagId != null ? sel.tagId : (sel.mark ? sel.mark.tagID : "");
+        // Clear the class from ALL elements first, so only the current target previews.
+        var js = '(function(){var l=document.querySelectorAll(".__mo-trial");for(var i=0;i<l.length;i++){l[i].classList.remove("__mo-trial");}' +
+            'var el=document.querySelector(\'[data-brackets-id="' + id + '"]\');' +
             'if(!el)return;var s=document.getElementById("mo-trial")||document.createElement("style");s.id="mo-trial";' +
             's.textContent=' + JSON.stringify(css.keyframes + "\n.__mo-trial{animation:mo-kf-" + anim.id + " " + (opts.duration || anim.dur) + "ms " + (opts.easing || DEFAULT_EASE) + " both" + (ATTENTION[anim.id] ? " infinite" : "") + "}") + ';' +
             'document.head.appendChild(s);el.classList.remove("__mo-trial");void el.offsetWidth;el.classList.add("__mo-trial");})();';
@@ -500,6 +513,7 @@ define(function (require, exports, module) {
     function onPreviewClicked(e, msg) {
         if (!msg || msg.tagId == null) { return; }
         ui.sel = { tagId: parseInt(msg.tagId, 10) };
+        clearTrial(); // stop any preview lingering on the previously selected element
         refreshSelMeta();
         updateSelbar();
         if ($panel.is(":visible") && ui.view === "settings") { updateApplyState(); trialSelected(); }
@@ -516,6 +530,7 @@ define(function (require, exports, module) {
     // View switching between the gallery and the per-animation settings.
     function showGallery() {
         ui.view = "gallery";
+        clearTrial();
         $panel.find(".mo-settings").hide();
         $panel.find(".mo-gallery").show();
     }
@@ -550,7 +565,7 @@ define(function (require, exports, module) {
         if ($panel[0]) { void $panel[0].offsetWidth; }
         $panel.addClass("mo-open");
     }
-    function closePanel() { $panel.hide().removeClass("mo-open"); }
+    function closePanel() { clearTrial(); $panel.hide().removeClass("mo-open"); }
     function togglePanel() { if ($panel.is(":visible")) { closePanel(); } else { openPanel(); } }
 
     // events
@@ -558,6 +573,7 @@ define(function (require, exports, module) {
     $panel.on("click", ".mo-reset", function (e) { e.preventDefault(); resetAll(); });
     // gallery: hover previews, click opens that animation's settings
     $panel.on("mouseenter", ".mo-tile", function () { var a = animById($(this).attr("data-anim")); if (a) { trial(a, ui); } });
+    $panel.on("mouseleave", ".mo-gallery", function () { if (ui.view === "gallery") { clearTrial(); } });
     $panel.on("click", ".mo-tile", function () { showSettings($(this).attr("data-anim")); });
     // settings
     $panel.on("click", ".mo-back", function () { showGallery(); });
