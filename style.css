@@ -13,7 +13,7 @@
     --z600:#52525b; --z500:#71717a; --z400:#a1a1aa; --z300:#d4d4d8; --white:#fff;
     --accent:#a78bfa;
     position: fixed; z-index: 10050; top: 56px; right: 16px;
-    width: 340px; max-height: 84vh; display: flex; flex-direction: column;
+    width: 340px; max-height: min(520px, 80vh); display: flex; flex-direction: column;
     background: var(--z900); color: var(--z300);
     border: 1px solid var(--z800); border-radius: 14px; overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
