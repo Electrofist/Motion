@@ -123,7 +123,16 @@ define(function (require, exports, module) {
         return '<svg class="mo-glyph" viewBox="0 0 44 44" width="44" height="44" aria-hidden="true">' + (GLYPHS[id] || '') + '</svg>';
     }
 
-    var EASINGS = ["ease", "ease-out", "ease-in", "ease-in-out", "linear", "cubic-bezier(.34,1.56,.64,1)"];
+    // Impeccable craft floor: default to exponential ease-out, not reflexive bounce.
+    var DEFAULT_EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
+    var EASINGS = [
+        { v: DEFAULT_EASE,                  label: "Ease out — natural" },
+        { v: "ease-out",                    label: "Ease out" },
+        { v: "ease-in-out",                 label: "Ease in-out" },
+        { v: "ease",                        label: "Ease" },
+        { v: "linear",                      label: "Linear" },
+        { v: "cubic-bezier(.34,1.56,.64,1)", label: "Overshoot" }
+    ];
 
     // ============================================================
     //  Pure CSS/HTML helpers (unit-tested in test/motion.test.js)
@@ -152,7 +161,7 @@ define(function (require, exports, module) {
     function animCss(anim, opts) {
         opts = opts || {};
         var dur = opts.duration || anim.dur;
-        var easing = opts.easing || "ease-out";
+        var easing = opts.easing || DEFAULT_EASE;
         var trigger = opts.trigger || "load";
         var kfName = "mo-kf-" + anim.id;
         var cls = "." + CLASS_PREFIX + anim.id;
@@ -368,7 +377,7 @@ define(function (require, exports, module) {
         var css = animCss(anim, opts);
         var js = '(function(){var el=document.querySelector(\'[data-brackets-id="' + (sel.tagId != null ? sel.tagId : (sel.mark ? sel.mark.tagID : "")) + '"]\');' +
             'if(!el)return;var s=document.getElementById("mo-trial")||document.createElement("style");s.id="mo-trial";' +
-            's.textContent=' + JSON.stringify(css.keyframes + "\n.__mo-trial{animation:mo-kf-" + anim.id + " " + (opts.duration || anim.dur) + "ms " + (opts.easing || "ease-out") + " both" + (ATTENTION[anim.id] ? " infinite" : "") + "}") + ';' +
+            's.textContent=' + JSON.stringify(css.keyframes + "\n.__mo-trial{animation:mo-kf-" + anim.id + " " + (opts.duration || anim.dur) + "ms " + (opts.easing || DEFAULT_EASE) + " both" + (ATTENTION[anim.id] ? " infinite" : "") + "}") + ';' +
             'document.head.appendChild(s);el.classList.remove("__mo-trial");void el.offsetWidth;el.classList.add("__mo-trial");})();';
         try { LiveDevProtocol.evaluate(js); } catch (e) { /* ignore */ }
     }
@@ -376,7 +385,7 @@ define(function (require, exports, module) {
     // ============================================================
     //  Panel UI
     // ============================================================
-    var ui = { view: "gallery", selected: null, sel: null, selMeta: null, duration: 600, easing: "ease-out", trigger: "load" };
+    var ui = { view: "gallery", selected: null, sel: null, selMeta: null, duration: 600, easing: DEFAULT_EASE, trigger: "load" };
 
     // Duration <-> Speed mapping. The speed slider runs slow (left) -> fast (right);
     // internally both drive the same duration in ms.
@@ -416,7 +425,7 @@ define(function (require, exports, module) {
     function renderSettings() {
         var a = animById(ui.selected);
         if (!a) { return; }
-        var opts = EASINGS.map(function (e) { return '<option value="' + e + '"' + (e === ui.easing ? " selected" : "") + '>' + e + '</option>'; }).join("");
+        var opts = EASINGS.map(function (e) { return '<option value="' + e.v + '"' + (e.v === ui.easing ? " selected" : "") + '>' + e.label + '</option>'; }).join("");
         $panel.find(".mo-settings").html(
             '<div class="mo-set-head">' +
             '  <button class="mo-back" title="Back to gallery">‹</button>' +

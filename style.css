@@ -1,22 +1,32 @@
-/* Motion - floating panel + animation gallery. Fixed dark zinc theme. */
+/* Motion — floating panel + animation gallery.
+   Design pass follows the Impeccable craft floor: a deliberate warm-gold accent
+   (the ✦ spark) instead of the default AI purple, warm-tinted neutrals instead of
+   pure zinc, exponential ease-out for motion, single-elevation surfaces, and an
+   honest system typeface. One accent owns the interactive role; teal is reserved
+   for the live-selection signal; neutrals carry everything else. */
 
 #motion-toolbar-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 30px; height: 30px; cursor: pointer; opacity: 0.9;
-    font-size: 16px; color: #d4d4d8; border-radius: 6px; text-decoration: none;
+    font-size: 16px; color: #b8b2a6; border-radius: 6px; text-decoration: none;
     transition: opacity 0.15s, color 0.15s;
 }
-#motion-toolbar-btn:hover { opacity: 1; color: #fff; }
+#motion-toolbar-btn:hover { opacity: 1; color: #eab949; }
 
 .motion-panel {
-    --z950:#09090b; --z900:#18181b; --z800:#27272a; --z700:#3f3f46;
-    --z600:#52525b; --z500:#71717a; --z400:#a1a1aa; --z300:#d4d4d8; --white:#fff;
-    --accent:#a78bfa;
+    /* warm-tinted charcoal neutrals (OKLCH hue ~75, very low chroma) */
+    --z950:#121110; --z900:#1a1917; --z800:#262420; --z700:#38352f;
+    --z600:#4d4941; --z500:#7c766b; --z400:#a9a294; --z300:#ebe7dd; --white:#fdfbf5;
+    /* gold accent = the spark; teal = live selection; coral = destructive */
+    --accent:#eab949; --accent-strong:#f4ca63;
+    --accent-soft:rgba(234,185,73,0.13); --accent-line:rgba(234,185,73,0.34);
+    --live:#57c8bd; --danger:#e78368;
+    --ease:cubic-bezier(0.16, 1, 0.3, 1);
     position: fixed; z-index: 10050; top: 56px; right: 16px;
     width: 340px; max-height: min(520px, 80vh); display: flex; flex-direction: column;
     background: var(--z900); color: var(--z300);
     border: 1px solid var(--z800); border-radius: 14px; overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     font-size: 13px;
     box-shadow: 0 24px 50px -12px rgba(0,0,0,0.7), 0 8px 20px -8px rgba(0,0,0,0.5);
 }
@@ -25,92 +35,87 @@
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 14px; border-bottom: 1px solid var(--z800);
 }
-.mo-brand { font-weight: 700; color: var(--white); letter-spacing: -0.01em; flex: 0 0 auto; }
+.mo-brand { font-weight: 650; color: var(--white); letter-spacing: -0.02em; flex: 0 0 auto; }
 .mo-brand::first-letter { color: var(--accent); }
-.mo-target {
-    flex: 1 1 auto; min-width: 0; margin: 0 10px; text-align: right;
-    font-size: 11px; color: var(--z500); font-family: ui-monospace, Menlo, monospace;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
 .mo-head-actions { flex: 1 1 auto; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .mo-reset {
     display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px;
-    border: 1px solid var(--z700); border-radius: 7px; background: var(--z800); color: var(--z300);
+    border: 1px solid var(--z700); border-radius: 7px; background: var(--z800); color: var(--z400);
     cursor: pointer; font-size: 11px; font-weight: 600; line-height: 1; white-space: nowrap;
-    transition: background 0.14s, color 0.14s, border-color 0.14s;
+    transition: color 0.16s var(--ease), border-color 0.16s var(--ease);
 }
-.mo-reset:hover { border-color: #f87171; color: #fca5a5; background: var(--z800); }
+.mo-reset:hover { border-color: var(--danger); color: var(--danger); }
 .mo-close {
     flex: 0 0 auto; width: 24px; height: 24px; border: none; border-radius: 6px;
     background: transparent; color: var(--z400); cursor: pointer; font-size: 14px; line-height: 1;
-    display: flex; align-items: center; justify-content: center; transition: background 0.14s, color 0.14s;
+    display: flex; align-items: center; justify-content: center; transition: background 0.16s var(--ease), color 0.16s var(--ease);
 }
 .mo-close:hover { background: var(--z800); color: var(--white); }
 
 /* Selection info bar — shows exactly what's selected in the Live Preview */
 .mo-selbar {
-    display: flex; align-items: center; gap: 8px; padding: 9px 14px;
+    display: flex; align-items: center; gap: 9px; padding: 9px 14px;
     border-bottom: 1px solid var(--z800); background: var(--z950); min-height: 34px;
 }
 .mo-sel-dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--z600); }
-.mo-sel-dot.on { background: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,0.15); }
+.mo-sel-dot.on { background: var(--live); }
 .mo-sel-desc {
     flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--z300);
-    font-family: ui-monospace, Menlo, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .mo-sel-desc b { color: var(--white); font-weight: 700; }
-.mo-sel-empty { color: var(--z500); font-family: inherit; }
-.mo-sel-id { color: #fbbf24; }
+.mo-sel-empty { color: var(--z500); font-family: system-ui, sans-serif; }
+.mo-sel-id { color: var(--z400); }
 .mo-sel-cls { color: var(--accent); }
 .mo-sel-text { color: var(--z500); margin-left: 6px; }
 .mo-sel-badge {
     flex: 0 0 auto; font-size: 10px; font-weight: 700; color: var(--accent);
-    background: rgba(167,139,250,0.14); border: 1px solid rgba(167,139,250,0.3);
+    background: var(--accent-soft); border: 1px solid var(--accent-line);
     border-radius: 999px; padding: 2px 7px;
 }
 
 /* Per-animation settings view */
-.mo-settings { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 12px; }
+.mo-settings { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 14px; display: flex; flex-direction: column; gap: 13px; }
 .mo-set-head { display: flex; align-items: center; gap: 10px; }
 .mo-back {
     width: 26px; height: 26px; border: 1px solid var(--z700); border-radius: 7px; background: var(--z800);
     color: var(--z300); cursor: pointer; font-size: 16px; line-height: 1; flex: 0 0 auto;
+    transition: border-color 0.16s var(--ease), color 0.16s var(--ease);
 }
 .mo-back:hover { border-color: var(--accent); color: var(--white); }
-.mo-set-title { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--white); font-size: 14px; }
+.mo-set-title { display: flex; align-items: center; gap: 9px; font-weight: 650; color: var(--white); font-size: 15px; letter-spacing: -0.02em; }
 .mo-set-title .mo-glyph { width: 26px; height: 26px; color: var(--accent); }
 .mo-speed-end { font-size: 10px; color: var(--z500); flex: 0 0 auto; }
 .mo-speed { flex: 1; accent-color: var(--accent); }
 .mo-dur-num {
     width: 74px; background: var(--z800); color: var(--z300); border: 1px solid var(--z700);
     border-radius: 8px; padding: 6px 8px; font-size: 12px; font-variant-numeric: tabular-nums;
+    transition: border-color 0.16s var(--ease);
 }
 .mo-dur-num:focus { outline: none; border-color: var(--accent); }
 .mo-unit { color: var(--z500); font-size: 12px; }
 .mo-apply {
-    margin-top: 2px; padding: 10px; border: none; border-radius: 9px; cursor: pointer;
-    background: var(--accent); color: #1a1030; font-weight: 700; font-size: 13px;
-    transition: filter 0.14s;
+    margin-top: 2px; padding: 11px; border: none; border-radius: 10px; cursor: pointer;
+    background: var(--accent); color: #231a04; font-weight: 700; font-size: 13px; letter-spacing: -0.01em;
+    transition: background 0.16s var(--ease);
 }
-.mo-apply:hover { filter: brightness(1.08); }
+.mo-apply:hover { background: var(--accent-strong); }
 
 .mo-controls { padding: 12px 14px; border-bottom: 1px solid var(--z800); display: flex; flex-direction: column; gap: 10px; }
 .mo-row { display: flex; align-items: center; gap: 10px; }
 .mo-row > label { width: 62px; color: var(--z400); font-size: 12px; flex: 0 0 62px; }
-.mo-dur { flex: 1; accent-color: var(--accent); }
-.mo-dur-val { width: 52px; text-align: right; color: var(--z300); font-variant-numeric: tabular-nums; }
 .mo-easing {
     flex: 1; background: var(--z800); color: var(--z300); border: 1px solid var(--z700);
     border-radius: 8px; padding: 6px 10px; font-size: 12px; -webkit-appearance: none; appearance: none;
 }
 .mo-trg-group { display: flex; gap: 4px; background: var(--z800); border-radius: 9px; padding: 3px; flex: 1; }
-.mo-trg { flex: 1; border: none; background: transparent; color: var(--z400); padding: 5px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; text-transform: capitalize; }
+.mo-trg { flex: 1; border: none; background: transparent; color: var(--z400); padding: 5px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; text-transform: capitalize; transition: color 0.16s var(--ease); }
 .mo-trg:hover { color: var(--z300); }
 .mo-trg.on { background: var(--z700); color: var(--white); }
 
-/* Gallery is the single scroll region; header + controls stay pinned. */
-/* No top padding: the sticky .mo-cat headers stick flush to the top so scrolled
-   tiles pass under their opaque background instead of peeking through a gap. */
+/* Gallery is the single scroll region; header + controls stay pinned.
+   No top padding: the sticky .mo-cat headers stick flush so scrolled tiles pass
+   under their opaque background instead of peeking through a gap. */
 .mo-gallery { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 14px 14px; }
 .mo-gallery::-webkit-scrollbar { width: 10px; }
 .mo-gallery::-webkit-scrollbar-thumb { background: var(--z700); border: 3px solid var(--z900); border-radius: 8px; }
@@ -118,30 +123,30 @@
 
 .mo-cat {
     position: sticky; top: 0; z-index: 1; margin: 0 -14px; padding: 14px 14px 8px;
-    background: var(--z900); font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
-    text-transform: uppercase; color: var(--z500);
+    background: var(--z900); font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+    color: var(--z500);
 }
-.mo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 8px; padding-bottom: 6px; }
+.mo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; padding-bottom: 4px; }
 
-/* No outer card — each item is just a square thumbnail + label. */
+/* Each item is a square glyph tile + label. Single elevation (fill only, no border)
+   so it reads as a control surface, not a ghost card. */
 .mo-tile {
-    display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 0;
     background: transparent; border: none; cursor: pointer; color: var(--z300);
 }
-.mo-tile-label { font-size: 11px; font-weight: 600; text-align: center; }
+.mo-tile-label { font-size: 11px; font-weight: 550; text-align: center; color: var(--z400); transition: color 0.16s var(--ease); }
 .mo-tile:hover .mo-tile-label { color: var(--white); }
 
-/* Thumbnail = small square box holding the glyph that shows what the animation does. */
 .mo-thumb {
     width: 100%; aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center;
-    background: var(--z800); border: 1px solid var(--z700); border-radius: 10px; color: var(--accent);
-    transition: border-color 0.14s, background 0.14s, transform 0.14s;
+    background: var(--z800); border-radius: 12px; color: var(--accent);
+    transition: background 0.18s var(--ease), color 0.18s var(--ease);
 }
-.mo-tile:hover .mo-thumb { border-color: var(--accent); background: var(--z700); transform: translateY(-1px); }
+.mo-tile:hover .mo-thumb { background: var(--z700); color: var(--accent-strong); }
 .mo-glyph { display: block; }
 .mo-blk { transform-box: fill-box; transform-origin: center; }
 
-/* On hover, the tile also live-animates its own glyph block for a quick in-place preview. */
+/* On hover, the tile live-animates its own glyph block for a quick in-place preview. */
 .mo-tile:hover .mo-blk { animation-duration: .9s; animation-iteration-count: 1; animation-fill-mode: both; }
 .mo-tile[data-anim="fade-in"]:hover     .mo-blk { animation-name: mo-p-fade; }
 .mo-tile[data-anim="fade-up"]:hover     .mo-blk { animation-name: mo-p-up; }
@@ -155,13 +160,14 @@
 .mo-tile[data-anim="shake"]:hover  .mo-blk { animation: mo-p-shake .6s both; }
 .mo-tile[data-anim="float"]:hover  .mo-blk { animation: mo-p-float 2s ease-in-out infinite; }
 .mo-tile[data-anim="spin"]:hover   .mo-blk { animation: mo-p-spin 1s linear infinite; }
+/* Preview micro-motion uses the same exponential ease-out as authored output. */
 @keyframes mo-p-fade { from{opacity:0} to{opacity:1} }
 @keyframes mo-p-up { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
 @keyframes mo-p-down { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:none} }
 @keyframes mo-p-left { from{opacity:0;transform:translateX(12px)} to{opacity:1;transform:none} }
 @keyframes mo-p-right { from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:none} }
 @keyframes mo-p-zoom { from{opacity:0;transform:scale(.7)} to{opacity:1;transform:scale(1)} }
-@keyframes mo-p-pop { 0%{transform:scale(.7)} 60%{transform:scale(1.15)} 100%{transform:scale(1)} }
+@keyframes mo-p-pop { 0%{transform:scale(.7)} 60%{transform:scale(1.12)} 100%{transform:scale(1)} }
 @keyframes mo-p-bounce { 0%{transform:translateY(10px)} 60%{transform:translateY(-6px)} 100%{transform:none} }
 @keyframes mo-p-pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.18)} }
 @keyframes mo-p-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
