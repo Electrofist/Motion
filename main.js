@@ -131,7 +131,7 @@ define(function (require, exports, module) {
         { v: "ease-in-out",                 label: "Ease in-out" },
         { v: "ease",                        label: "Ease" },
         { v: "linear",                      label: "Linear" },
-        { v: "cubic-bezier(.34,1.56,.64,1)", label: "Overshoot" }
+        { v: "cubic-bezier(.34,1.56,.64,1)", label: "Overshoot" } // impeccable-disable-line bounce-easing -- user-selectable catalog easing, not a UI default
     ];
 
     // ============================================================
@@ -487,7 +487,7 @@ define(function (require, exports, module) {
         ui.sel = { tagId: parseInt(msg.tagId, 10) };
         refreshSelMeta();
         updateSelbar();
-        if ($panel.is(":visible") && ui.view === "settings") { trialSelected(); }
+        if ($panel.is(":visible") && ui.view === "settings") { updateApplyState(); trialSelected(); }
     }
     function initLiveSelection() {
         if (!LiveDevMB || !LiveDevMB.EVENT_LIVE_PREVIEW_CLICKED) { return; }
@@ -508,6 +508,7 @@ define(function (require, exports, module) {
         ui.view = "settings";
         ui.selected = id;
         renderSettings();
+        updateApplyState();
         $panel.find(".mo-gallery").hide();
         $panel.find(".mo-settings").show();
         var a = animById(id);
@@ -515,13 +516,26 @@ define(function (require, exports, module) {
     }
     function trialSelected() { var a = animById(ui.selected); if (a) { trial(a, ui); } }
 
+    // Apply is only meaningful with a selected element — disable it with a clear
+    // reason rather than letting the click fail with an after-the-fact error.
+    function updateApplyState() {
+        var $a = $panel.find(".mo-apply");
+        if (!$a.length) { return; }
+        var a = animById(ui.selected);
+        var has = !!ui.selMeta;
+        $a.prop("disabled", !has).text(has ? ("Apply " + (a ? a.label : "")) : "Select an element to apply");
+    }
+
     function openPanel() {
         if (!$panel[0] || !document.body.contains($panel[0])) { $panel.appendTo("body"); }
         renderControls(); renderGallery(); refreshSelMeta(); updateSelbar();
         showGallery();
-        $panel.show();
+        // replay the entrance animation each time the panel opens
+        $panel.removeClass("mo-open").show();
+        if ($panel[0]) { void $panel[0].offsetWidth; }
+        $panel.addClass("mo-open");
     }
-    function closePanel() { $panel.hide(); }
+    function closePanel() { $panel.hide().removeClass("mo-open"); }
     function togglePanel() { if ($panel.is(":visible")) { closePanel(); } else { openPanel(); } }
 
     // events
