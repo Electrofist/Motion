@@ -20,8 +20,10 @@ define(function (require, exports, module) {
         ExtensionUtils   = brackets.getModule("utils/ExtensionUtils"),
         AppInit          = brackets.getModule("utils/AppInit");
 
-    var LiveDevProtocol = null;
+    var LiveDevProtocol = null, LiveDevMB = null, HTMLInstr = null;
     try { LiveDevProtocol = brackets.getModule("LiveDevelopment/MultiBrowserImpl/protocol/LiveDevProtocol"); } catch (e) { /* optional */ }
+    try { LiveDevMB = brackets.getModule("LiveDevelopment/LiveDevMultiBrowser"); } catch (e) { /* optional */ }
+    try { HTMLInstr = brackets.getModule("LiveDevelopment/MultiBrowserImpl/language/HTMLInstrumentation"); } catch (e) { /* optional */ }
 
     ExtensionUtils.loadStyleSheet(module, "style.css");
 
@@ -50,6 +52,9 @@ define(function (require, exports, module) {
     ];
     var ATTENTION = { pulse: 1, shake: 1, float: 1, spin: 1 };
     function animById(id) { for (var i = 0; i < ANIMS.length; i++) { if (ANIMS[i].id === id) { return ANIMS[i]; } } return null; }
+    // Exact set of classes Motion may add — used by Reset to strip only our own classes.
+    var MO_CLASSES = ANIMS.map(function (a) { return CLASS_PREFIX + a.id; });
+    function isMoClass(c) { return MO_CLASSES.indexOf(c) !== -1; }
 
     // Static "what does this do" glyph per animation (drawn like the gallery reference:
     // a solid accent block + faded ghost trail + direction arrows). Uses currentColor so
@@ -213,12 +218,60 @@ define(function (require, exports, module) {
         best.openTag = gt >= 0 ? text.slice(0, gt + 1) : text;
         best.tag = (best.openTag.match(/^<([a-zA-Z][\w-]*)/) || [])[1] || "element";
         best.doc = ed.document;
+        best.fullText = text;
+        best.tagId = best.mark.tagID;
         return best;
     }
 
+    // The editor holding the previewed HTML (works even in design mode, editor hidden).
+    function liveEditor() {
+        if (LiveDevMB && LiveDevMB.getCurrentLiveDoc) {
+            var ld = LiveDevMB.getCurrentLiveDoc();
+            if (ld && ld.editor && ld.editor._codeMirror) { return ld.editor; }
+        }
+        return activeEditor();
+    }
+
+    // Resolve the *live-preview-selected* element (set by clicks in the preview) to its
+    // source range. Falls back to the cursor-based mark if nothing has been picked yet.
+    function resolveSelection() {
+        if (ui.sel && ui.sel.tagId != null && HTMLInstr && HTMLInstr.getPositionFromTagId) {
+            var ed = liveEditor();
+            if (ed && ed._codeMirror) {
+                var range = HTMLInstr.getPositionFromTagId(ed, parseInt(ui.sel.tagId, 10));
+                if (range && range.from && range.to) {
+                    var cm = ed._codeMirror;
+                    var text = cm.getRange(range.from, range.to);
+                    var gt = text.indexOf(">");
+                    var openTag = gt >= 0 ? text.slice(0, gt + 1) : text;
+                    var tag = (openTag.match(/^<([a-zA-Z][\w-]*)/) || [])[1] || "element";
+                    return {
+                        tagId: parseInt(ui.sel.tagId, 10), mark: { tagID: parseInt(ui.sel.tagId, 10) },
+                        from: range.from, to: range.to, openTag: openTag, tag: tag,
+                        doc: ed.document, fullText: text
+                    };
+                }
+            }
+        }
+        return findMarkAtCursor();
+    }
+
+    // Parse tag / id / classes / text preview out of a resolved selection for the info bar.
+    function selectionMeta() {
+        var r = resolveSelection();
+        if (!r) { return null; }
+        var open = r.openTag || "";
+        var clsM = open.match(/class\s*=\s*("([^"]*)"|'([^']*)')/);
+        var classes = clsM ? (clsM[2] != null ? clsM[2] : clsM[3]).split(/\s+/).filter(Boolean) : [];
+        var idM = open.match(/\bid\s*=\s*("([^"]*)"|'([^']*)')/);
+        var domId = idM ? (idM[2] != null ? idM[2] : idM[3]) : "";
+        var inner = (r.fullText || "").replace(/^<[^>]*>/, "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+        return { tag: r.tag, id: domId, classes: classes, text: inner.slice(0, 42) };
+    }
+
     function applyAnimation(anim, opts) {
-        var sel = findMarkAtCursor();
-        if (!sel) { flash("Click an element in the Live Preview first (or place your cursor on a tag)."); return; }
+        var sel = resolveSelection();
+        if (!sel) { flash("Click an element in the Live Preview to select it first."); return; }
         var css = animCss(anim, opts);
         var doc = sel.doc;
         doc.batchOperation(function () {
@@ -234,6 +287,43 @@ define(function (require, exports, module) {
             if (css.scroll) { ensureObserver(doc); }
         });
         flash("Applied " + anim.label + " to <" + sel.tag + ">");
+        refreshSelMeta();
+        updateSelbar();
+    }
+
+    // Remove every Motion artifact from the previewed document: our classes, the managed
+    // <style> block and the scroll observer. Uses incremental replaceRange edits (never
+    // setText) so the live-preview instrumentation / brackets-ids stay in sync.
+    function resetAll() {
+        var ed = liveEditor();
+        var doc = ed && ed.document ? ed.document : (activeEditor() && activeEditor().document);
+        if (!doc) { flash("Open an HTML file in Live Preview to reset."); return; }
+        var text = doc.getText(), edits = [], m;
+        // managed <style> block(s)
+        var reStyle = /[ \t]*<style id="motion-animations">[\s\S]*?<\/style>[ \t]*\r?\n?/g;
+        while ((m = reStyle.exec(text))) { edits.push([m.index, m.index + m[0].length, ""]); }
+        // scroll observer script(s)
+        var reScript = /[ \t]*<script data-motion>[\s\S]*?<\/script>[ \t]*\r?\n?/g;
+        while ((m = reScript.exec(text))) { edits.push([m.index, m.index + m[0].length, ""]); }
+        // strip Motion classes from class attributes (only our own classes)
+        var reClass = /\sclass\s*=\s*("([^"]*)"|'([^']*)')/g;
+        while ((m = reClass.exec(text))) {
+            var val = m[2] != null ? m[2] : m[3];
+            var list = val.split(/\s+/).filter(Boolean);
+            if (!list.some(isMoClass)) { continue; }
+            var kept = list.filter(function (c) { return !isMoClass(c); });
+            edits.push([m.index, m.index + m[0].length, kept.length ? ' class="' + kept.join(" ") + '"' : ""]);
+        }
+        if (!edits.length) { flash("Nothing to reset — no Motion animations found."); return; }
+        var count = edits.length;
+        // apply END -> START so earlier offsets stay valid and marks are preserved
+        edits.sort(function (a, b) { return b[0] - a[0]; });
+        doc.batchOperation(function () {
+            edits.forEach(function (e) { doc.replaceRange(e[2], posFromOffset(doc, e[0]), posFromOffset(doc, e[1])); });
+        });
+        ui.sel = null; ui.selMeta = null;
+        updateSelbar();
+        flash("Reset — cleared Motion animations (" + count + " edit" + (count > 1 ? "s" : "") + ").");
     }
 
     // Insert or update the managed <style id="motion-animations"> block in <head>.
@@ -273,9 +363,10 @@ define(function (require, exports, module) {
     // Preview an animation live without touching source (best-effort via LiveDevProtocol).
     function trial(anim, opts) {
         if (!LiveDevProtocol || !LiveDevProtocol.evaluate) { flash("Open Live Preview to trial."); return; }
-        var sel = findMarkAtCursor();
+        var sel = resolveSelection();
+        if (!sel) { return; }
         var css = animCss(anim, opts);
-        var js = '(function(){var el=document.querySelector(\'[data-brackets-id="' + (sel ? sel.mark.tagID : "") + '"]\');' +
+        var js = '(function(){var el=document.querySelector(\'[data-brackets-id="' + (sel.tagId != null ? sel.tagId : (sel.mark ? sel.mark.tagID : "")) + '"]\');' +
             'if(!el)return;var s=document.getElementById("mo-trial")||document.createElement("style");s.id="mo-trial";' +
             's.textContent=' + JSON.stringify(css.keyframes + "\n.__mo-trial{animation:mo-kf-" + anim.id + " " + (opts.duration || anim.dur) + "ms " + (opts.easing || "ease-out") + " both" + (ATTENTION[anim.id] ? " infinite" : "") + "}") + ';' +
             'document.head.appendChild(s);el.classList.remove("__mo-trial");void el.offsetWidth;el.classList.add("__mo-trial");})();';
@@ -285,7 +376,7 @@ define(function (require, exports, module) {
     // ============================================================
     //  Panel UI
     // ============================================================
-    var ui = { view: "gallery", selected: null, duration: 600, easing: "ease-out", trigger: "load" };
+    var ui = { view: "gallery", selected: null, sel: null, selMeta: null, duration: 600, easing: "ease-out", trigger: "load" };
 
     // Duration <-> Speed mapping. The speed slider runs slow (left) -> fast (right);
     // internally both drive the same duration in ms.
@@ -298,10 +389,13 @@ define(function (require, exports, module) {
         '<div id="motion-panel" class="motion-panel">' +
         '  <div class="mo-header">' +
         '    <span class="mo-brand">✦ Motion</span>' +
-        '    <div class="mo-target">no element selected</div>' +
-        '    <button class="mo-close" title="Close" aria-label="Close">✕</button>' +
+        '    <div class="mo-head-actions">' +
+        '      <button class="mo-reset" title="Remove all applied animations">↺ Reset</button>' +
+        '      <button class="mo-close" title="Close" aria-label="Close">✕</button>' +
+        '    </div>' +
         '  </div>' +
         '  <div class="mo-controls"></div>' +
+        '  <div class="mo-selbar"></div>' +
         '  <div class="mo-gallery"></div>' +
         '  <div class="mo-settings"></div>' +
         '  <div class="mo-status"></div>' +
@@ -356,10 +450,43 @@ define(function (require, exports, module) {
         }).join("");
         $panel.find(".mo-gallery").html(html);
     }
-    function renderTarget() {
-        var sel = findMarkAtCursor();
-        $panel.find(".mo-target").text(sel ? ("target: <" + sel.tag + ">") : "click an element in Live Preview");
+    function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+    // Selection info bar: shows exactly what's selected in the Live Preview.
+    // Uses the cached ui.selMeta so it stays put across re-instrumentation (e.g. after Apply).
+    function refreshSelMeta() { var m = selectionMeta(); if (m) { ui.selMeta = m; } return ui.selMeta; }
+    function updateSelbar() {
+        var $b = $panel.find(".mo-selbar");
+        var m = ui.selMeta;
+        if (!m) {
+            $b.removeClass("has-sel").html('<span class="mo-sel-dot"></span><span class="mo-sel-desc mo-sel-empty">No element selected — click one in the Live Preview</span>');
+            return;
+        }
+        var applied = m.classes.filter(isMoClass);
+        var userCls = m.classes.filter(function (c) { return !isMoClass(c); });
+        var sig = '<b>' + esc(m.tag) + '</b>' +
+            (m.id ? '<span class="mo-sel-id">#' + esc(m.id) + '</span>' : '') +
+            userCls.map(function (c) { return '<span class="mo-sel-cls">.' + esc(c) + '</span>'; }).join('');
+        var txt = m.text ? '<span class="mo-sel-text">“' + esc(m.text) + '”</span>' : '';
+        var badge = applied.length ? '<span class="mo-sel-badge">' + applied.length + ' anim' + (applied.length > 1 ? 's' : '') + '</span>' : '';
+        $b.addClass("has-sel").html('<span class="mo-sel-dot on"></span><span class="mo-sel-desc">' + sig + txt + '</span>' + badge);
     }
+
+    // Fired when the user clicks an element in the Live Preview (works in design mode).
+    function onPreviewClicked(e, msg) {
+        if (!msg || msg.tagId == null) { return; }
+        ui.sel = { tagId: parseInt(msg.tagId, 10) };
+        refreshSelMeta();
+        updateSelbar();
+        if ($panel.is(":visible") && ui.view === "settings") { trialSelected(); }
+    }
+    function initLiveSelection() {
+        if (!LiveDevMB || !LiveDevMB.EVENT_LIVE_PREVIEW_CLICKED) { return; }
+        var EV = LiveDevMB.EVENT_LIVE_PREVIEW_CLICKED + ".motion";
+        try { LiveDevMB.off(EV); } catch (e) { /* ignore */ }
+        LiveDevMB.on(EV, onPreviewClicked);
+    }
+
     function flash(msg) { $panel.find(".mo-status").text(msg); }
 
     // View switching between the gallery and the per-animation settings.
@@ -381,7 +508,7 @@ define(function (require, exports, module) {
 
     function openPanel() {
         if (!$panel[0] || !document.body.contains($panel[0])) { $panel.appendTo("body"); }
-        renderControls(); renderGallery(); renderTarget();
+        renderControls(); renderGallery(); refreshSelMeta(); updateSelbar();
         showGallery();
         $panel.show();
     }
@@ -390,6 +517,7 @@ define(function (require, exports, module) {
 
     // events
     $panel.on("click", ".mo-close", function (e) { e.preventDefault(); closePanel(); });
+    $panel.on("click", ".mo-reset", function (e) { e.preventDefault(); resetAll(); });
     $panel.on("click", ".mo-trg", function () { ui.trigger = $(this).attr("data-trg"); renderControls(); });
     // gallery: hover previews, click opens that animation's settings
     $panel.on("mouseenter", ".mo-tile", function () { var a = animById($(this).attr("data-anim")); if (a) { trial(a, ui); } });
@@ -420,7 +548,7 @@ define(function (require, exports, module) {
     // toolbar button
     var $btn = $('<a href="#" id="motion-toolbar-btn" title="Motion" aria-label="Motion">✦</a>');
     var TOGGLE = "motion.toggle";
-    $btn.on("click", function (e) { e.preventDefault(); e.stopPropagation(); togglePanel(); if ($panel.is(":visible")) { renderTarget(); } });
+    $btn.on("click", function (e) { e.preventDefault(); e.stopPropagation(); togglePanel(); if ($panel.is(":visible")) { updateSelbar(); } });
     $(document).on("mousedown.motion", function (e) {
         if (!$panel.is(":visible")) { return; }
         if ($(e.target).closest("#motion-panel, #motion-toolbar-btn").length) { return; }
@@ -432,11 +560,14 @@ define(function (require, exports, module) {
         if ($tb.length) { var $g = $tb.find(".buttons").first(); ($g.length ? $g : $tb).append($btn); }
         CommandManager.register("Toggle Motion", TOGGLE, togglePanel);
         try { var vm = Menus.getMenu(Menus.AppMenuBar.VIEW_MENU); if (vm) { vm.addMenuItem(TOGGLE); } } catch (e) {}
-        // keep target label fresh when the user clicks around
+        // track element selection coming from clicks in the Live Preview
+        initLiveSelection();
         try {
             var em = brackets.getModule("editor/EditorManager");
-            $(em).on("activeEditorChange", function () { if ($panel.is(":visible")) { renderTarget(); } });
+            $(em).on("activeEditorChange", function () { if ($panel.is(":visible")) { updateSelbar(); } });
         } catch (e) {}
         console.log("Motion ready.");
     });
+    // Also (re)subscribe immediately in case appReady already fired (hot-reload path).
+    initLiveSelection();
 });
