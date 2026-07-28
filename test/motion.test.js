@@ -1,56 +1,121 @@
-/* Pure-logic tests for Motion: class merging, animation CSS, style-block merge.
- * Extracts the real functions from ../main.js (no editor). Run: node test/motion.test.js */
+/* Pure-logic tests for Motion. Extracts the real functions from the PURE-HELPERS
+ * block in ../main.js (no editor needed) so tests can't drift from the source.
+ * Run: node test/motion.test.js  (or: npm test)
+ */
 "use strict";
 const fs = require("fs"), path = require("path");
 const SRC = fs.readFileSync(path.join(__dirname, "..", "main.js"), "utf8");
-const i = SRC.indexOf("    function mergeClass("), j = SRC.indexOf("    var OBSERVER");
-if (i < 0 || j < 0) { console.error("FATAL: markers not found"); process.exit(2); }
-const region = SRC.slice(i, j);
-const api = new Function("CLASS_PREFIX", "ATTENTION",
-    region + "\nreturn { mergeClass, animCss, mergeStyleBody };"
-)("mo-", { pulse: 1, shake: 1, float: 1, spin: 1 });
+
+// Extract everything between the // <PURE-HELPERS> ... // </PURE-HELPERS> sentinels.
+const open = SRC.indexOf("<PURE-HELPERS>");
+const close = SRC.indexOf("</PURE-HELPERS>");
+if (open < 0 || close < 0) { console.error("FATAL: PURE-HELPERS sentinels not found in main.js"); process.exit(2); }
+const region = SRC.slice(SRC.indexOf("\n", open) + 1, SRC.lastIndexOf("\n", close));
+
+const RETURN = "\nreturn { mergeClass, animCss, mergeStyleBody, sliceOpenTag, advancePos, " +
+    "stripMotionClasses, clamp, speedToDur, durToSpeed, DEFAULT_EASE, EASINGS, DUR_MIN, DUR_MAX };";
+const api = new Function("CLASS_PREFIX", "ATTENTION", region + RETURN)(
+    "mo-", { pulse: 1, shake: 1, float: 1, spin: 1 }
+);
+
+// Fail fast if the region didn't export something (turns a lazy ReferenceError-at-call
+// into an explicit harness failure).
+["mergeClass", "animCss", "mergeStyleBody", "sliceOpenTag", "advancePos", "stripMotionClasses",
+ "clamp", "speedToDur", "durToSpeed"].forEach(function (n) {
+    if (typeof api[n] !== "function") { console.error("FATAL: missing pure fn " + n); process.exit(2); }
+});
+if (typeof api.DEFAULT_EASE !== "string" || !Array.isArray(api.EASINGS)) { console.error("FATAL: missing EASINGS/DEFAULT_EASE"); process.exit(2); }
 
 let pass = 0, fail = 0;
 function ok(n, c, d) { if (c) { pass++; console.log("  PASS  " + n); } else { fail++; console.log("  FAIL  " + n + (d ? "  -- " + d : "")); } }
+function eq(n, got, want) { ok(n, got === want, "got " + JSON.stringify(got) + " want " + JSON.stringify(want)); }
 console.log("motion.test.js");
 
+const MO = ["mo-fade-up", "mo-pop", "mo-fade-in", "mo-pulse"]; // sample Motion class allow-list
+
 // ---- mergeClass ----
-ok("adds class to existing class attr", api.mergeClass('<div class="a b">', "mo-fade-up") === '<div class="a b mo-fade-up">');
-ok("no-op if class already present", api.mergeClass('<div class="a mo-fade-up b">', "mo-fade-up") === '<div class="a mo-fade-up b">');
-ok("adds class attr when none", api.mergeClass('<section id="x">', "mo-pop") === '<section class="mo-pop" id="x">');
-ok("preserves single quotes", api.mergeClass("<a class='btn'>", "mo-pop") === "<a class='btn mo-pop'>");
-ok("handles self-closing tag", api.mergeClass('<img src="x.png" />', "mo-zoom-in") === '<img class="mo-zoom-in" src="x.png" />');
-ok("keeps other attrs + style intact", /class="card mo-pop"/.test(api.mergeClass('<div class="card" style="color:red">', "mo-pop")));
-ok("bad input returns unchanged", api.mergeClass("not a tag", "mo-x") === "not a tag");
+eq("mergeClass: adds to existing class", api.mergeClass('<div class="a b">', "mo-fade-up"), '<div class="a b mo-fade-up">');
+eq("mergeClass: no-op if present", api.mergeClass('<div class="a mo-fade-up b">', "mo-fade-up"), '<div class="a mo-fade-up b">');
+eq("mergeClass: adds class attr when none", api.mergeClass('<section id="x">', "mo-pop"), '<section class="mo-pop" id="x">');
+eq("mergeClass: single quotes preserved", api.mergeClass("<a class='btn'>", "mo-pop"), "<a class='btn mo-pop'>");
+eq("mergeClass: self-closing tag", api.mergeClass('<img src="x.png" />', "mo-zoom-in"), '<img class="mo-zoom-in" src="x.png" />');
+eq("mergeClass: self-close no space", api.mergeClass('<input type="text"/>', "mo-pop"), '<input class="mo-pop" type="text"/>');
+ok("mergeClass: keeps other attrs", /class="card mo-pop"/.test(api.mergeClass('<div class="card" style="color:red">', "mo-pop")));
+eq("mergeClass: bad input unchanged", api.mergeClass("not a tag", "mo-x"), "not a tag");
+eq("mergeClass: unquoted class merges (no dup attr)", api.mergeClass('<div class=foo>', "mo-pop"), '<div class="foo mo-pop">');
+eq("mergeClass: uppercase CLASS merges", api.mergeClass('<div CLASS="a">', "mo-pop"), '<div CLASS="a mo-pop">');
+eq("mergeClass: substring not a false dup", api.mergeClass('<div class="mo-popover">', "mo-pop"), '<div class="mo-popover mo-pop">');
+eq("mergeClass: multiline attrs", api.mergeClass('<div\n  class="a">', "mo-pop"), '<div\n  class="a mo-pop">');
+eq("mergeClass: empty class value", api.mergeClass('<div class="">', "mo-pop"), '<div class="mo-pop">');
+ok("mergeClass: does not match data-class", api.mergeClass('<div data-class="x">', "mo-pop") === '<div class="mo-pop" data-class="x">');
 
 // ---- animCss ----
 const load = api.animCss({ id: "fade-up", dur: 600, frames: "{from{opacity:0}to{opacity:1}}" }, { duration: 800, easing: "ease-out", trigger: "load" });
-ok("load: class rule with animation shorthand", load.rule === ".mo-fade-up{animation:mo-kf-fade-up 800ms ease-out both}");
-ok("load: keyframes emitted", load.keyframes === "@keyframes mo-kf-fade-up {from{opacity:0}to{opacity:1}}");
-ok("load: cls returned", load.cls === "mo-fade-up" && load.scroll === false);
-
-const hover = api.animCss({ id: "pop", dur: 450, frames: "{to{}}" }, { trigger: "hover" });
-ok("hover: :hover selector", /^\.mo-pop:hover\{animation:/.test(hover.rule));
-
+eq("animCss: load rule", load.rule, ".mo-fade-up{animation:mo-kf-fade-up 800ms ease-out both}");
+eq("animCss: keyframes", load.keyframes, "@keyframes mo-kf-fade-up {from{opacity:0}to{opacity:1}}");
+ok("animCss: cls + scroll flag", load.cls === "mo-fade-up" && load.scroll === false);
+ok("animCss: default easing = DEFAULT_EASE", api.animCss({ id: "pop", dur: 450, frames: "{to{}}" }, {}).rule.indexOf("450ms " + api.DEFAULT_EASE + " both") !== -1);
+ok("animCss: duration override", api.animCss({ id: "pop", dur: 450, frames: "{to{}}" }, { duration: 1000 }).rule.indexOf("mo-kf-pop 1000ms") !== -1);
+ok("animCss: explicit easing", api.animCss({ id: "pop", dur: 450, frames: "{to{}}" }, { easing: "linear" }).rule.indexOf("450ms linear both") !== -1);
+ok("animCss: hover selector", /^\.mo-pop:hover\{animation:/.test(api.animCss({ id: "pop", dur: 450, frames: "{to{}}" }, { trigger: "hover" }).rule));
 const scroll = api.animCss({ id: "fade-in", dur: 500, frames: "{to{}}" }, { trigger: "scroll" });
-ok("scroll: hidden until .in-view", scroll.rule.indexOf(".mo-fade-in{opacity:0}") === 0 && scroll.rule.indexOf(".mo-fade-in.in-view{animation:") !== -1);
-ok("scroll: flag set", scroll.scroll === true);
-
-const att = api.animCss({ id: "pulse", dur: 900, frames: "{to{}}" }, { trigger: "load" });
-ok("attention anim loops (infinite)", /infinite\}$/.test(att.rule));
+ok("animCss: scroll hidden until in-view", scroll.rule.indexOf(".mo-fade-in{opacity:0}") === 0 && scroll.rule.indexOf(".mo-fade-in.in-view{animation:") !== -1);
+ok("animCss: scroll flag set", scroll.scroll === true);
+ok("animCss: scroll non-attention has no infinite", scroll.rule.indexOf("infinite") === -1);
+ok("animCss: attention loops (load)", /infinite\}$/.test(api.animCss({ id: "pulse", dur: 900, frames: "{to{}}" }, { trigger: "load" }).rule));
+ok("animCss: attention + scroll → infinite in in-view", /\.in-view\{animation:[^}]*infinite\}/.test(api.animCss({ id: "pulse", dur: 900, frames: "{to{}}" }, { trigger: "scroll" }).rule));
 
 // ---- mergeStyleBody ----
 const c1 = api.animCss({ id: "fade-up", dur: 600, frames: "{from{opacity:0}to{opacity:1}}" }, {});
 let body = api.mergeStyleBody("", c1);
-ok("empty body -> keyframes + rule", body.indexOf("@keyframes mo-kf-fade-up") !== -1 && body.indexOf(".mo-fade-up{animation:") !== -1);
+ok("mergeStyleBody: empty → keyframes + rule", body.indexOf("@keyframes mo-kf-fade-up") !== -1 && body.indexOf(".mo-fade-up{animation:") !== -1);
 const c2 = api.animCss({ id: "pop", dur: 450, frames: "{to{transform:scale(1)}}" }, {});
 body = api.mergeStyleBody(body, c2);
-ok("second anim appended", body.indexOf("mo-kf-fade-up") !== -1 && body.indexOf("mo-kf-pop") !== -1);
+ok("mergeStyleBody: second anim appended", body.indexOf("mo-kf-fade-up") !== -1 && body.indexOf("mo-kf-pop") !== -1);
 const c1b = api.animCss({ id: "fade-up", dur: 300, frames: "{from{opacity:0}to{opacity:1}}" }, { duration: 300 });
 body = api.mergeStyleBody(body, c1b);
-ok("re-apply same class replaces rule (no dup)", (body.match(/\.mo-fade-up\{animation:/g) || []).length === 1);
-ok("re-apply updates duration", body.indexOf("mo-kf-fade-up 300ms") !== -1);
-ok("keyframes not duplicated", (body.match(/@keyframes mo-kf-fade-up/g) || []).length === 1);
+eq("mergeStyleBody: re-apply replaces (no dup rule)", (body.match(/\.mo-fade-up\{animation:/g) || []).length, 1);
+ok("mergeStyleBody: re-apply updates duration", body.indexOf("mo-kf-fade-up 300ms") !== -1);
+eq("mergeStyleBody: keyframes not duplicated", (body.match(/@keyframes mo-kf-fade-up/g) || []).length, 1);
+let hbody = api.mergeStyleBody("", api.animCss({ id: "pop", dur: 450, frames: "{to{}}" }, { trigger: "hover" }));
+hbody = api.mergeStyleBody(hbody, api.animCss({ id: "pop", dur: 450, frames: "{to{}}" }, { trigger: "hover" }));
+eq("mergeStyleBody: hover re-apply dedup", (hbody.match(/\.mo-pop:hover\{animation:/g) || []).length, 1);
+let sbody = api.mergeStyleBody("", api.animCss({ id: "fade-in", dur: 500, frames: "{to{}}" }, { trigger: "scroll" }));
+sbody = api.mergeStyleBody(sbody, api.animCss({ id: "fade-in", dur: 500, frames: "{to{}}" }, { trigger: "scroll" }));
+eq("mergeStyleBody: scroll re-apply → one in-view rule", (sbody.match(/\.mo-fade-in\.in-view\{animation:/g) || []).length, 1);
+
+// ---- sliceOpenTag ----
+eq("sliceOpenTag: simple", api.sliceOpenTag('<div class="a">rest</div>'), '<div class="a">');
+eq("sliceOpenTag: quote-aware (> inside attr)", api.sliceOpenTag('<a title="x>y" class="c">Link</a>'), '<a title="x>y" class="c">');
+eq("sliceOpenTag: single-quote attr", api.sliceOpenTag("<img src='a>b'/>after"), "<img src='a>b'/>");
+eq("sliceOpenTag: no close returns input", api.sliceOpenTag("<div class=x"), "<div class=x");
+
+// ---- advancePos ----
+eq("advancePos: single line", JSON.stringify(api.advancePos({ line: 5, ch: 2 }, "abcd")), JSON.stringify({ line: 5, ch: 6 }));
+eq("advancePos: multi line", JSON.stringify(api.advancePos({ line: 5, ch: 2 }, "ab\ncd\ne")), JSON.stringify({ line: 7, ch: 1 }));
+
+// ---- stripMotionClasses ----
+eq("stripMotionClasses: keeps user, drops motion", api.stripMotionClasses("card mo-pop mo-fade-up", MO), "card");
+eq("stripMotionClasses: only motion → empty", api.stripMotionClasses("mo-pop", MO), "");
+eq("stripMotionClasses: no motion → unchanged", api.stripMotionClasses("btn hero", MO), "btn hero");
+
+// ---- speed/duration/clamp ----
+eq("speedToDur(0) = DUR_MAX", api.speedToDur(0), api.DUR_MAX);
+eq("speedToDur(100) = DUR_MIN", api.speedToDur(100), api.DUR_MIN);
+eq("durToSpeed(DUR_MAX) = 0", api.durToSpeed(api.DUR_MAX), 0);
+eq("durToSpeed(DUR_MIN) = 100", api.durToSpeed(api.DUR_MIN), 100);
+[150, 600, 1500, 3000].forEach(function (d) {
+    ok("speed<->dur round-trip ~" + d, Math.abs(api.speedToDur(api.durToSpeed(d)) - d) <= 30, "d=" + d);
+});
+eq("durToSpeed clamps above range", api.durToSpeed(99999), 0);
+eq("durToSpeed clamps below range", api.durToSpeed(-100), 100);
+eq("clamp above", api.clamp(10, 0, 5), 5);
+eq("clamp below", api.clamp(-3, 0, 5), 0);
+eq("clamp within", api.clamp(3, 0, 5), 3);
+
+// ---- EASINGS invariants ----
+ok("EASINGS default-first", api.EASINGS[0].v === api.DEFAULT_EASE);
+eq("EASINGS length", api.EASINGS.length, 6);
 
 console.log("\n" + pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);

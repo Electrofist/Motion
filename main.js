@@ -16,7 +16,6 @@ define(function (require, exports, module) {
     var CommandManager   = brackets.getModule("command/CommandManager"),
         Menus            = brackets.getModule("command/Menus"),
         EditorManager    = brackets.getModule("editor/EditorManager"),
-        PreferencesManager = brackets.getModule("preferences/PreferencesManager"),
         ExtensionUtils   = brackets.getModule("utils/ExtensionUtils"),
         AppInit          = brackets.getModule("utils/AppInit");
 
@@ -27,7 +26,6 @@ define(function (require, exports, module) {
 
     ExtensionUtils.loadStyleSheet(module, "style.css");
 
-    var prefs = PreferencesManager.getExtensionPrefs("motion");
     var CLASS_PREFIX = "mo-";
     var STYLE_ID = "motion-animations";
 
@@ -123,6 +121,12 @@ define(function (require, exports, module) {
         return '<svg class="mo-glyph" viewBox="0 0 44 44" width="44" height="44" aria-hidden="true">' + (GLYPHS[id] || '') + '</svg>';
     }
 
+    // ============================================================
+    //  <PURE-HELPERS>  (extracted & unit-tested in test/motion.test.js —
+    //  everything between the PURE-HELPERS sentinels must stay side-effect-free
+    //  and reference only CLASS_PREFIX / ATTENTION or values declared in here.)
+    // ============================================================
+
     // Impeccable craft floor: default to exponential ease-out, not reflexive bounce.
     var DEFAULT_EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
     var EASINGS = [
@@ -134,23 +138,55 @@ define(function (require, exports, module) {
         { v: "cubic-bezier(.34,1.56,.64,1)", label: "Overshoot" } // impeccable-disable-line bounce-easing -- user-selectable catalog easing, not a UI default
     ];
 
-    // ============================================================
-    //  Pure CSS/HTML helpers (unit-tested in test/motion.test.js)
-    // ============================================================
-    // Add a class to an opening tag string, preserving existing classes.
+    // Duration <-> Speed mapping. The speed slider runs slow (left) -> fast (right);
+    // both drive the same duration in ms. Slider range == input range (no mismatch).
+    var DUR_MIN = 150, DUR_MAX = 3000;
+    function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+    function speedToDur(v) { return Math.round(DUR_MAX - (v / 100) * (DUR_MAX - DUR_MIN)); }
+    function durToSpeed(d) { return clamp(Math.round((DUR_MAX - d) / (DUR_MAX - DUR_MIN) * 100), 0, 100); }
+
+    // Return the opening tag up to the first ">" that is OUTSIDE any quoted
+    // attribute value (a naive indexOf(">") splits <a title="x>y" class="c">).
+    function sliceOpenTag(text) {
+        var q = null;
+        for (var i = 0; i < text.length; i++) {
+            var c = text.charAt(i);
+            if (q) { if (c === q) { q = null; } }
+            else if (c === '"' || c === "'") { q = c; }
+            else if (c === ">") { return text.slice(0, i + 1); }
+        }
+        return text;
+    }
+
+    // Advance a {line,ch} position by a (possibly multi-line) string. Used to bound
+    // an edit of the opening tag when it spans several lines.
+    function advancePos(from, str) {
+        var nl = str.split("\n");
+        if (nl.length === 1) { return { line: from.line, ch: from.ch + str.length }; }
+        return { line: from.line + nl.length - 1, ch: nl[nl.length - 1].length };
+    }
+
+    // Remove Motion's own classes from a class-attribute value; returns the kept
+    // classes joined (empty string if none remain). moClasses is the exact allow-list.
+    function stripMotionClasses(value, moClasses) {
+        return value.split(/\s+/).filter(function (c) { return c && moClasses.indexOf(c) === -1; }).join(" ");
+    }
+
+    // Add a class to an opening tag string, preserving existing classes. Handles
+    // double/single-quoted and unquoted class values, and any letter case.
     function mergeClass(openTag, cls) {
         if (!openTag || !cls) { return openTag; }
         var m = openTag.match(/^(<[a-zA-Z][\w-]*)([\s\S]*?)(\/?>)$/);
         if (!m) { return openTag; }
         var head = m[1], attrs = m[2], tail = m[3];
-        var cm = attrs.match(/\sclass\s*=\s*("([^"]*)"|'([^']*)')/);
+        var cm = attrs.match(/(\sclass\s*=\s*)("([^"]*)"|'([^']*)'|([^\s"'>]+))/i);
         if (cm) {
-            var val = cm[2] != null ? cm[2] : cm[3];
+            var val = cm[3] != null ? cm[3] : (cm[4] != null ? cm[4] : cm[5]);
             var list = val.split(/\s+/).filter(Boolean);
             if (list.indexOf(cls) !== -1) { return openTag; } // already has it
             list.push(cls);
-            var quote = cm[0].indexOf("'") !== -1 ? "'" : '"';
-            var newAttr = ' class=' + quote + list.join(" ") + quote;
+            var quote = cm[2].charAt(0) === "'" ? "'" : '"';
+            var newAttr = cm[1] + quote + list.join(" ") + quote;
             return head + attrs.replace(cm[0], newAttr) + tail;
         }
         // no class attr: add one right after the tag name
@@ -191,6 +227,9 @@ define(function (require, exports, module) {
         else { body += "\n" + css.rule; }
         return body.replace(/^\n+/, "");
     }
+    // ============================================================
+    //  </PURE-HELPERS>
+    // ============================================================
 
     var OBSERVER =
         '\n<script data-motion>\n' +
@@ -223,8 +262,7 @@ define(function (require, exports, module) {
         });
         if (!best) { return null; }
         var text = cm.getRange(best.from, best.to);
-        var gt = text.indexOf(">");
-        best.openTag = gt >= 0 ? text.slice(0, gt + 1) : text;
+        best.openTag = sliceOpenTag(text);
         best.tag = (best.openTag.match(/^<([a-zA-Z][\w-]*)/) || [])[1] || "element";
         best.doc = ed.document;
         best.fullText = text;
@@ -244,24 +282,31 @@ define(function (require, exports, module) {
     // Resolve the *live-preview-selected* element (set by clicks in the preview) to its
     // source range. Falls back to the cursor-based mark if nothing has been picked yet.
     function resolveSelection() {
-        if (ui.sel && ui.sel.tagId != null && HTMLInstr && HTMLInstr.getPositionFromTagId) {
-            var ed = liveEditor();
-            if (ed && ed._codeMirror) {
-                var range = HTMLInstr.getPositionFromTagId(ed, parseInt(ui.sel.tagId, 10));
-                if (range && range.from && range.to) {
-                    var cm = ed._codeMirror;
-                    var text = cm.getRange(range.from, range.to);
-                    var gt = text.indexOf(">");
-                    var openTag = gt >= 0 ? text.slice(0, gt + 1) : text;
-                    var tag = (openTag.match(/^<([a-zA-Z][\w-]*)/) || [])[1] || "element";
-                    return {
-                        tagId: parseInt(ui.sel.tagId, 10), mark: { tagID: parseInt(ui.sel.tagId, 10) },
-                        from: range.from, to: range.to, openTag: openTag, tag: tag,
-                        doc: ed.document, fullText: text
-                    };
+        // Once the user has picked an element in the preview, resolve strictly by its
+        // brackets-id. If that id no longer maps (the page re-instrumented after an
+        // edit), return null — do NOT silently fall back to the cursor, which would
+        // target an unrelated element.
+        if (ui.sel && ui.sel.tagId != null) {
+            if (HTMLInstr && HTMLInstr.getPositionFromTagId) {
+                var ed = liveEditor();
+                if (ed && ed._codeMirror) {
+                    var range = HTMLInstr.getPositionFromTagId(ed, parseInt(ui.sel.tagId, 10));
+                    if (range && range.from && range.to) {
+                        var cm = ed._codeMirror;
+                        var text = cm.getRange(range.from, range.to);
+                        var openTag = sliceOpenTag(text);
+                        var tag = (openTag.match(/^<([a-zA-Z][\w-]*)/) || [])[1] || "element";
+                        return {
+                            tagId: parseInt(ui.sel.tagId, 10), mark: { tagID: parseInt(ui.sel.tagId, 10) },
+                            from: range.from, to: range.to, openTag: openTag, tag: tag,
+                            doc: ed.document, fullText: text
+                        };
+                    }
                 }
             }
+            return null;
         }
+        // Nothing picked yet: fall back to the editor cursor's instrumented element.
         return findMarkAtCursor();
     }
 
@@ -283,18 +328,22 @@ define(function (require, exports, module) {
         if (!sel) { flash("Click an element in the Live Preview to select it first."); return; }
         var css = animCss(anim, opts);
         var doc = sel.doc;
-        doc.batchOperation(function () {
-            // 1) merge the class onto the element's opening tag
-            var newOpen = mergeClass(sel.openTag, css.cls);
-            if (newOpen !== sel.openTag) {
-                var openTo = { line: sel.from.line, ch: sel.from.ch + sel.openTag.length };
-                doc.replaceRange(newOpen, sel.from, openTo);
-            }
-            // 2) ensure the managed <style> block (keyframes + rule)
-            ensureStyleBlock(doc, css);
-            // 3) scroll trigger needs the observer helper once
-            if (css.scroll) { ensureObserver(doc); }
-        });
+        try {
+            doc.batchOperation(function () {
+                // 1) merge the class onto the element's opening tag (openTag may span lines)
+                var newOpen = mergeClass(sel.openTag, css.cls);
+                if (newOpen !== sel.openTag) {
+                    doc.replaceRange(newOpen, sel.from, advancePos(sel.from, sel.openTag));
+                }
+                // 2) ensure the managed <style> block (keyframes + rule)
+                ensureStyleBlock(doc, css);
+                // 3) scroll trigger needs the observer helper once
+                if (css.scroll) { ensureObserver(doc); }
+            });
+        } catch (e) {
+            flash("Couldn't edit this file (is it writable?).");
+            return;
+        }
         clearTrial(); // the real class now drives it; drop the transient preview
         flash("Applied " + anim.label + " to <" + sel.tag + ">");
         refreshSelMeta();
@@ -305,6 +354,7 @@ define(function (require, exports, module) {
     // <style> block and the scroll observer. Uses incremental replaceRange edits (never
     // setText) so the live-preview instrumentation / brackets-ids stay in sync.
     function resetAll() {
+        clearTrial(); // drop any live preview before touching source
         var ed = liveEditor();
         var doc = ed && ed.document ? ed.document : (activeEditor() && activeEditor().document);
         if (!doc) { flash("Open an HTML file in Live Preview to reset."); return; }
@@ -315,22 +365,27 @@ define(function (require, exports, module) {
         // scroll observer script(s)
         var reScript = /[ \t]*<script data-motion>[\s\S]*?<\/script>[ \t]*\r?\n?/g;
         while ((m = reScript.exec(text))) { edits.push([m.index, m.index + m[0].length, ""]); }
-        // strip Motion classes from class attributes (only our own classes)
-        var reClass = /\sclass\s*=\s*("([^"]*)"|'([^']*)')/g;
+        // strip Motion classes from class attributes (quoted or unquoted, any case)
+        var reClass = /(\sclass\s*=\s*)("([^"]*)"|'([^']*)'|([^\s"'>]+))/gi;
         while ((m = reClass.exec(text))) {
-            var val = m[2] != null ? m[2] : m[3];
-            var list = val.split(/\s+/).filter(Boolean);
-            if (!list.some(isMoClass)) { continue; }
-            var kept = list.filter(function (c) { return !isMoClass(c); });
-            edits.push([m.index, m.index + m[0].length, kept.length ? ' class="' + kept.join(" ") + '"' : ""]);
+            var val = m[3] != null ? m[3] : (m[4] != null ? m[4] : m[5]);
+            if (!val.split(/\s+/).some(isMoClass)) { continue; }
+            var kept = stripMotionClasses(val, MO_CLASSES);
+            var quote = m[2].charAt(0) === "'" ? "'" : '"';
+            edits.push([m.index, m.index + m[0].length, kept ? m[1] + quote + kept + quote : ""]);
         }
         if (!edits.length) { flash("Nothing to reset — no Motion animations found."); return; }
         var count = edits.length;
         // apply END -> START so earlier offsets stay valid and marks are preserved
         edits.sort(function (a, b) { return b[0] - a[0]; });
-        doc.batchOperation(function () {
-            edits.forEach(function (e) { doc.replaceRange(e[2], posFromOffset(doc, e[0]), posFromOffset(doc, e[1])); });
-        });
+        try {
+            doc.batchOperation(function () {
+                edits.forEach(function (e) { doc.replaceRange(e[2], posFromOffset(doc, e[0]), posFromOffset(doc, e[1])); });
+            });
+        } catch (e) {
+            flash("Couldn't edit this file (is it writable?).");
+            return;
+        }
         ui.sel = null; ui.selMeta = null;
         updateSelbar();
         flash("Reset — cleared Motion animations (" + count + " edit" + (count > 1 ? "s" : "") + ").");
@@ -348,17 +403,31 @@ define(function (require, exports, module) {
             replaceByOffset(doc, idx + open.length, end, "\n" + merged.trim() + "\n");
         } else {
             var block = "\n" + open + "\n" + mergeStyleBody("", css).trim() + "\n</style>\n";
-            var headClose = text.indexOf("</head>");
-            if (headClose !== -1) { insertAtOffset(doc, headClose, block); }
-            else { insertAtOffset(doc, 0, block); }
+            insertAtOffset(doc, headInsertOffset(text), block);
         }
+    }
+
+    // Best spot for a managed block in <head>: before </head>, else just after the
+    // opening <head ...>, else before <body>, else after the doctype/<html>, else 0.
+    function headInsertOffset(text) {
+        var headClose = text.indexOf("</head>");
+        if (headClose !== -1) { return headClose; }
+        var headOpen = text.match(/<head[^>]*>/i);
+        if (headOpen) { return headOpen.index + headOpen[0].length; }
+        var bodyOpen = text.search(/<body[\s>]/i);
+        if (bodyOpen !== -1) { return bodyOpen; }
+        var htmlOpen = text.match(/<html[^>]*>/i);
+        if (htmlOpen) { return htmlOpen.index + htmlOpen[0].length; }
+        return 0;
     }
 
     function ensureObserver(doc) {
         var text = doc.getText();
         if (text.indexOf("<script data-motion>") !== -1) { return; }
         var bodyClose = text.indexOf("</body>");
-        if (bodyClose !== -1) { insertAtOffset(doc, bodyClose, OBSERVER + "\n"); }
+        if (bodyClose === -1) { bodyClose = text.indexOf("</html>"); }
+        // fall back to end of document so scroll animations never get stuck invisible
+        insertAtOffset(doc, bodyClose !== -1 ? bodyClose : text.length, OBSERVER + "\n");
     }
 
     // offset helpers (doc uses line/ch; convert)
@@ -381,7 +450,9 @@ define(function (require, exports, module) {
     }
 
     function trial(anim, opts) {
-        if (!LiveDevProtocol || !LiveDevProtocol.evaluate) { flash("Open Live Preview to trial."); return; }
+        // Silent when there's no live preview or nothing selected — this fires on
+        // every gallery hover and must not spam the status line.
+        if (!LiveDevProtocol || !LiveDevProtocol.evaluate) { return; }
         var sel = resolveSelection();
         if (!sel) { return; }
         var css = animCss(anim, opts);
@@ -399,13 +470,7 @@ define(function (require, exports, module) {
     //  Panel UI
     // ============================================================
     var ui = { view: "gallery", selected: null, sel: null, selMeta: null, duration: 600, easing: DEFAULT_EASE, trigger: "load" };
-
-    // Duration <-> Speed mapping. The speed slider runs slow (left) -> fast (right);
-    // internally both drive the same duration in ms.
-    var DUR_MIN = 150, DUR_MAX = 3000;
-    function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
-    function speedToDur(v) { return Math.round(DUR_MAX - (v / 100) * (DUR_MAX - DUR_MIN)); }
-    function durToSpeed(d) { return clamp(Math.round((DUR_MAX - d) / (DUR_MAX - DUR_MIN) * 100), 0, 100); }
+    // DUR_MIN/DUR_MAX, clamp, speedToDur, durToSpeed live in the PURE-HELPERS block above.
 
     var $panel = $(
         '<div id="motion-panel" class="motion-panel">' +
@@ -440,7 +505,7 @@ define(function (require, exports, module) {
             return '<button class="mo-seg-btn' + (t.v === ui.trigger ? " on" : "") + '" data-trg="' + t.v + '" title="' + t.hint + '">' + t.label + '</button>';
         }).join("");
         var curEase = EASINGS.filter(function (e) { return e.v === ui.easing; })[0] || EASINGS[0];
-        var easeItems = EASINGS.map(function (e) { return '<button type="button" class="mo-menu-item' + (e.v === ui.easing ? " on" : "") + '" data-ease="' + e.v + '">' + e.label + '</button>'; }).join("");
+        var easeItems = EASINGS.map(function (e) { var on = e.v === ui.easing; return '<button type="button" role="option" aria-selected="' + on + '" class="mo-menu-item' + (on ? " on" : "") + '" data-ease="' + e.v + '">' + e.label + '</button>'; }).join("");
         $panel.find(".mo-settings").html(
             '<div class="mo-set-head">' +
             '  <button class="mo-back" title="Back to gallery" aria-label="Back to gallery">‹</button>' +
@@ -459,13 +524,13 @@ define(function (require, exports, module) {
             '<div class="mo-field">' +
             '  <label class="mo-field-label">Easing</label>' +
             '  <div class="mo-select">' +
-            '    <button type="button" class="mo-select-btn"><span class="mo-select-label">' + curEase.label + '</span><span class="mo-select-caret" aria-hidden="true">▾</span></button>' +
-            '    <div class="mo-menu">' + easeItems + '</div>' +
+            '    <button type="button" class="mo-select-btn" aria-haspopup="listbox" aria-expanded="false"><span class="mo-select-label">' + curEase.label + '</span><span class="mo-select-caret" aria-hidden="true">▾</span></button>' +
+            '    <div class="mo-menu" role="listbox" aria-label="Easing">' + easeItems + '</div>' +
             '  </div>' +
             '</div>' +
             '<div class="mo-field">' +
             '  <label class="mo-field-label">Duration</label>' +
-            '  <div class="mo-dur-row"><input type="number" class="mo-dur-num" min="' + DUR_MIN + '" max="5000" step="10" value="' + ui.duration + '"><span class="mo-unit">ms</span></div>' +
+            '  <div class="mo-dur-row"><input type="number" class="mo-dur-num" min="' + DUR_MIN + '" max="' + DUR_MAX + '" step="10" value="' + ui.duration + '"><span class="mo-unit">ms</span></div>' +
             '</div>' +
             '<button class="mo-apply">Apply ' + a.label + '</button>'
         );
@@ -552,7 +617,9 @@ define(function (require, exports, module) {
         var $a = $panel.find(".mo-apply");
         if (!$a.length) { return; }
         var a = animById(ui.selected);
-        var has = !!ui.selMeta;
+        // Enable strictly on a currently-resolvable selection, so the button's target
+        // always matches what apply would edit (never a stale cursor element).
+        var has = !!resolveSelection();
         $a.prop("disabled", !has).text(has ? ("Apply " + (a ? a.label : "")) : "Select an element to apply");
     }
 
@@ -584,18 +651,23 @@ define(function (require, exports, module) {
         trialSelected();
     });
     // Easing custom dropdown (native <select> won't paint its value in this webview).
-    $panel.on("click", ".mo-select-btn", function (e) { e.preventDefault(); e.stopPropagation(); $(this).closest(".mo-select").toggleClass("open"); });
+    function closeEaseMenu() { $panel.find(".mo-select").removeClass("open").find(".mo-select-btn").attr("aria-expanded", "false"); }
+    $panel.on("click", ".mo-select-btn", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var open = $(this).closest(".mo-select").toggleClass("open").hasClass("open");
+        $(this).attr("aria-expanded", open ? "true" : "false");
+    });
     $panel.on("click", ".mo-menu-item", function (e) {
         e.preventDefault(); e.stopPropagation();
         ui.easing = $(this).attr("data-ease");
         var $s = $(this).closest(".mo-select");
         $s.find(".mo-select-label").text($(this).text());
-        $s.find(".mo-menu-item").removeClass("on");
-        $(this).addClass("on");
-        $s.removeClass("open");
+        $s.find(".mo-menu-item").removeClass("on").attr("aria-selected", "false");
+        $(this).addClass("on").attr("aria-selected", "true");
+        closeEaseMenu();
         trialSelected();
     });
-    $panel.on("click", function (e) { if (!$(e.target).closest(".mo-select").length) { $panel.find(".mo-select").removeClass("open"); } });
+    $panel.on("click", function (e) { if (!$(e.target).closest(".mo-select").length) { closeEaseMenu(); } });
     function syncSpeedReadout() { $panel.find(".mo-field-val").text(ui.duration + " ms"); }
     $panel.on("input", ".mo-speed", function () {
         ui.duration = speedToDur(+this.value);
@@ -604,12 +676,12 @@ define(function (require, exports, module) {
         trialSelected();
     });
     $panel.on("input", ".mo-dur-num", function () {
-        ui.duration = clamp(+this.value || DUR_MIN, DUR_MIN, 5000);
+        ui.duration = clamp(+this.value || DUR_MIN, DUR_MIN, DUR_MAX);
         $panel.find(".mo-speed").val(durToSpeed(ui.duration));
         syncSpeedReadout();
     });
     $panel.on("change", ".mo-dur-num", function () {
-        ui.duration = clamp(+this.value || DUR_MIN, DUR_MIN, 5000);
+        ui.duration = clamp(+this.value || DUR_MIN, DUR_MIN, DUR_MAX);
         this.value = ui.duration;
         $panel.find(".mo-speed").val(durToSpeed(ui.duration));
         syncSpeedReadout();
@@ -624,6 +696,13 @@ define(function (require, exports, module) {
     var $btn = $('<a href="#" id="motion-toolbar-btn" title="Motion" aria-label="Motion">✦</a>');
     var TOGGLE = "motion.toggle";
     $btn.on("click", function (e) { e.preventDefault(); e.stopPropagation(); togglePanel(); if ($panel.is(":visible")) { updateSelbar(); } });
+    $(document).on("keydown.motion", function (e) {
+        if (!$panel.is(":visible")) { return; }
+        if (e.key === "Escape" || e.keyCode === 27) {
+            if ($panel.find(".mo-select.open").length) { closeEaseMenu(); }
+            else { closePanel(); }
+        }
+    });
     $(document).on("mousedown.motion", function (e) {
         if (!$panel.is(":visible")) { return; }
         if ($(e.target).closest("#motion-panel, #motion-toolbar-btn").length) { return; }

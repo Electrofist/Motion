@@ -1,0 +1,24 @@
+name: CI
+
+# Guardrail: syntax-check main.js (it's an AMD module that can't be require()d in
+# Node, so `node --check` is the syntax gate) and run the pure-logic test suite on
+# every push and pull request. No dependencies / lockfile, so nothing to install.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Syntax check + unit tests
+        run: npm run check
