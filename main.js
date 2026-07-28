@@ -403,7 +403,6 @@ define(function (require, exports, module) {
         '      <button class="mo-close" title="Close" aria-label="Close">✕</button>' +
         '    </div>' +
         '  </div>' +
-        '  <div class="mo-controls"></div>' +
         '  <div class="mo-selbar"></div>' +
         '  <div class="mo-gallery"></div>' +
         '  <div class="mo-settings"></div>' +
@@ -412,33 +411,49 @@ define(function (require, exports, module) {
     ).appendTo("body");
     $panel.hide();
 
-    // Top controls: Trigger only. Easing / Speed / Duration live in the per-animation
-    // settings view (shown after you pick an animation).
-    function renderControls() {
-        var trg = ["load", "scroll", "hover"].map(function (t) { return '<button class="mo-trg' + (t === ui.trigger ? " on" : "") + '" data-trg="' + t + '">' + t + '</button>'; }).join("");
-        $panel.find(".mo-controls").html(
-            '<div class="mo-row"><label>Trigger</label><div class="mo-trg-group">' + trg + '</div></div>'
-        );
-    }
+    var TRIGGERS = [
+        { v: "load",   label: "On load",   hint: "plays when the page loads" },
+        { v: "scroll", label: "On scroll", hint: "plays when scrolled into view" },
+        { v: "hover",  label: "On hover",  hint: "plays on mouse hover" }
+    ];
 
-    // Per-animation settings: easing, speed (slider) and duration (editable number).
+    // Per-animation settings, laid out as stacked full-width fields (label above the
+    // control) with a large segmented Trigger, a prominent Speed slider, an editable
+    // Duration and an Easing select. Generous vertical rhythm.
     function renderSettings() {
         var a = animById(ui.selected);
         if (!a) { return; }
-        var opts = EASINGS.map(function (e) { return '<option value="' + e.v + '"' + (e.v === ui.easing ? " selected" : "") + '>' + e.label + '</option>'; }).join("");
+        var seg = TRIGGERS.map(function (t) {
+            return '<button class="mo-seg-btn' + (t.v === ui.trigger ? " on" : "") + '" data-trg="' + t.v + '" title="' + t.hint + '">' + t.label + '</button>';
+        }).join("");
+        var curEase = EASINGS.filter(function (e) { return e.v === ui.easing; })[0] || EASINGS[0];
+        var easeItems = EASINGS.map(function (e) { return '<button type="button" class="mo-menu-item' + (e.v === ui.easing ? " on" : "") + '" data-ease="' + e.v + '">' + e.label + '</button>'; }).join("");
         $panel.find(".mo-settings").html(
             '<div class="mo-set-head">' +
-            '  <button class="mo-back" title="Back to gallery">‹</button>' +
+            '  <button class="mo-back" title="Back to gallery" aria-label="Back to gallery">‹</button>' +
             '  <span class="mo-set-title">' + glyphSvg(a.id) + '<span>' + a.label + '</span></span>' +
             '</div>' +
-            '<div class="mo-row"><label>Easing</label><select class="mo-easing">' + opts + '</select></div>' +
-            '<div class="mo-row"><label>Speed</label>' +
-            '  <span class="mo-speed-end">Slow</span>' +
-            '  <input type="range" class="mo-speed" min="0" max="100" step="1" value="' + durToSpeed(ui.duration) + '">' +
+            '<div class="mo-field">' +
+            '  <label class="mo-field-label">Trigger</label>' +
+            '  <div class="mo-seg">' + seg + '</div>' +
+            '</div>' +
+            '<div class="mo-field">' +
+            '  <div class="mo-field-head"><label class="mo-field-label">Speed</label><span class="mo-field-val">' + ui.duration + ' ms</span></div>' +
+            '  <div class="mo-slider"><span class="mo-speed-end">Slow</span>' +
+            '    <input type="range" class="mo-speed" min="0" max="100" step="1" value="' + durToSpeed(ui.duration) + '">' +
             '  <span class="mo-speed-end">Fast</span></div>' +
-            '<div class="mo-row"><label>Duration</label>' +
-            '  <input type="number" class="mo-dur-num" min="' + DUR_MIN + '" max="5000" step="10" value="' + ui.duration + '">' +
-            '  <span class="mo-unit">ms</span></div>' +
+            '</div>' +
+            '<div class="mo-field">' +
+            '  <label class="mo-field-label">Easing</label>' +
+            '  <div class="mo-select">' +
+            '    <button type="button" class="mo-select-btn"><span class="mo-select-label">' + curEase.label + '</span><span class="mo-select-caret" aria-hidden="true">▾</span></button>' +
+            '    <div class="mo-menu">' + easeItems + '</div>' +
+            '  </div>' +
+            '</div>' +
+            '<div class="mo-field">' +
+            '  <label class="mo-field-label">Duration</label>' +
+            '  <div class="mo-dur-row"><input type="number" class="mo-dur-num" min="' + DUR_MIN + '" max="5000" step="10" value="' + ui.duration + '"><span class="mo-unit">ms</span></div>' +
+            '</div>' +
             '<button class="mo-apply">Apply ' + a.label + '</button>'
         );
     }
@@ -528,7 +543,7 @@ define(function (require, exports, module) {
 
     function openPanel() {
         if (!$panel[0] || !document.body.contains($panel[0])) { $panel.appendTo("body"); }
-        renderControls(); renderGallery(); refreshSelMeta(); updateSelbar();
+        renderGallery(); refreshSelMeta(); updateSelbar();
         showGallery();
         // replay the entrance animation each time the panel opens
         $panel.removeClass("mo-open").show();
@@ -541,26 +556,47 @@ define(function (require, exports, module) {
     // events
     $panel.on("click", ".mo-close", function (e) { e.preventDefault(); closePanel(); });
     $panel.on("click", ".mo-reset", function (e) { e.preventDefault(); resetAll(); });
-    $panel.on("click", ".mo-trg", function () { ui.trigger = $(this).attr("data-trg"); renderControls(); });
     // gallery: hover previews, click opens that animation's settings
     $panel.on("mouseenter", ".mo-tile", function () { var a = animById($(this).attr("data-anim")); if (a) { trial(a, ui); } });
     $panel.on("click", ".mo-tile", function () { showSettings($(this).attr("data-anim")); });
     // settings
     $panel.on("click", ".mo-back", function () { showGallery(); });
-    $panel.on("change", ".mo-easing", function () { ui.easing = this.value; trialSelected(); });
+    $panel.on("click", ".mo-seg-btn", function () {
+        ui.trigger = $(this).attr("data-trg");
+        $panel.find(".mo-seg-btn").removeClass("on");
+        $(this).addClass("on");
+        trialSelected();
+    });
+    // Easing custom dropdown (native <select> won't paint its value in this webview).
+    $panel.on("click", ".mo-select-btn", function (e) { e.preventDefault(); e.stopPropagation(); $(this).closest(".mo-select").toggleClass("open"); });
+    $panel.on("click", ".mo-menu-item", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        ui.easing = $(this).attr("data-ease");
+        var $s = $(this).closest(".mo-select");
+        $s.find(".mo-select-label").text($(this).text());
+        $s.find(".mo-menu-item").removeClass("on");
+        $(this).addClass("on");
+        $s.removeClass("open");
+        trialSelected();
+    });
+    $panel.on("click", function (e) { if (!$(e.target).closest(".mo-select").length) { $panel.find(".mo-select").removeClass("open"); } });
+    function syncSpeedReadout() { $panel.find(".mo-field-val").text(ui.duration + " ms"); }
     $panel.on("input", ".mo-speed", function () {
         ui.duration = speedToDur(+this.value);
         $panel.find(".mo-dur-num").val(ui.duration);
+        syncSpeedReadout();
         trialSelected();
     });
     $panel.on("input", ".mo-dur-num", function () {
         ui.duration = clamp(+this.value || DUR_MIN, DUR_MIN, 5000);
         $panel.find(".mo-speed").val(durToSpeed(ui.duration));
+        syncSpeedReadout();
     });
     $panel.on("change", ".mo-dur-num", function () {
         ui.duration = clamp(+this.value || DUR_MIN, DUR_MIN, 5000);
         this.value = ui.duration;
         $panel.find(".mo-speed").val(durToSpeed(ui.duration));
+        syncSpeedReadout();
         trialSelected();
     });
     $panel.on("click", ".mo-apply", function () {
