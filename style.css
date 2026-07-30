@@ -36,13 +36,20 @@
     --fs-title:15px; --fs-brand:13px; --fs-body:12px; --fs-label:11px; --fs-meta:12px; --fs-micro:10px;
 
     position: fixed; z-index: 10050; top: 56px; right: 16px;
-    width: 340px; max-height: min(520px, 80vh); display: flex; flex-direction: column;
+    /* Definite height (not max-height) so the flex column actually shrinks its
+       scroll regions instead of overflowing and clipping the footer. */
+    width: 340px; height: min(600px, 85vh); display: flex; flex-direction: column;
     background: var(--z900); color: var(--z300);
     border: 1px solid var(--z800); border-radius: 14px; overflow: hidden;
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     font-size: var(--fs-body); line-height: 1.35;
     box-shadow: 0 24px 50px -12px rgba(0,0,0,0.7), 0 8px 20px -8px rgba(0,0,0,0.5);
 }
+
+/* Visibility is toggled by class (not jQuery show/hide, which writes inline
+   display:block and breaks the flex layout — clipping the sticky footer). */
+.motion-panel.mo-hidden { display: none; }
+.mo-hide { display: none !important; }
 
 /* One authored moment: the panel arrives from the toolbar corner. */
 .motion-panel.mo-open { animation: mo-panel-in 0.26s var(--ease) both; }
@@ -183,8 +190,11 @@
 .mo-unit { color: var(--z500); font-size: var(--fs-body); }
 
 .mo-apply {
-    margin-top: var(--s1); padding: 13px; border: none; border-radius: var(--r2); cursor: pointer;
+    /* Sticky footer: always reachable even when the fields scroll. */
+    position: sticky; bottom: 0; margin-top: auto;
+    padding: 13px; border: none; border-radius: var(--r2); cursor: pointer;
     background: var(--accent); color: #231a04; font-weight: 700; font-size: 13.5px; letter-spacing: -0.01em;
+    box-shadow: 0 -10px 16px -6px var(--z900);
     transition: background 0.16s var(--ease), transform 0.08s var(--ease);
 }
 .mo-apply:hover { background: var(--accent-strong); }

@@ -487,7 +487,7 @@ define(function (require, exports, module) {
         '  <div class="mo-status"></div>' +
         '</div>'
     ).appendTo("body");
-    $panel.hide();
+    $panel.addClass("mo-hidden");
 
     var TRIGGERS = [
         { v: "load",   label: "On load",   hint: "plays when the page loads" },
@@ -593,19 +593,21 @@ define(function (require, exports, module) {
     function flash(msg) { $panel.find(".mo-status").text(msg); }
 
     // View switching between the gallery and the per-animation settings.
+    // View toggling uses a class (mo-hide) rather than jQuery show/hide, which would
+    // write inline display:block and break the panel's / settings' flex layout.
     function showGallery() {
         ui.view = "gallery";
         clearTrial();
-        $panel.find(".mo-settings").hide();
-        $panel.find(".mo-gallery").show();
+        $panel.find(".mo-settings").addClass("mo-hide");
+        $panel.find(".mo-gallery").removeClass("mo-hide");
     }
     function showSettings(id) {
         ui.view = "settings";
         ui.selected = id;
         renderSettings();
         updateApplyState();
-        $panel.find(".mo-gallery").hide();
-        $panel.find(".mo-settings").show();
+        $panel.find(".mo-gallery").addClass("mo-hide");
+        $panel.find(".mo-settings").removeClass("mo-hide");
         var a = animById(id);
         if (a) { trial(a, ui); } // preview immediately
     }
@@ -627,12 +629,12 @@ define(function (require, exports, module) {
         if (!$panel[0] || !document.body.contains($panel[0])) { $panel.appendTo("body"); }
         renderGallery(); refreshSelMeta(); updateSelbar();
         showGallery();
-        // replay the entrance animation each time the panel opens
-        $panel.removeClass("mo-open").show();
+        // show via class (keeps display:flex) + replay the entrance animation
+        $panel.removeClass("mo-open mo-hidden");
         if ($panel[0]) { void $panel[0].offsetWidth; }
         $panel.addClass("mo-open");
     }
-    function closePanel() { clearTrial(); $panel.hide().removeClass("mo-open"); }
+    function closePanel() { clearTrial(); $panel.addClass("mo-hidden").removeClass("mo-open"); }
     function togglePanel() { if ($panel.is(":visible")) { closePanel(); } else { openPanel(); } }
 
     // events
