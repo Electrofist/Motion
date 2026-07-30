@@ -181,12 +181,19 @@
 /* Duration */
 .mo-dur-row { display: flex; align-items: center; gap: 9px; }
 .mo-dur-num {
-    width: 100px; background: var(--z800); color: var(--z300); border: 1px solid var(--z700);
-    border-radius: var(--r2); padding: 11px 12px; font-size: var(--fs-body); font-variant-numeric: tabular-nums;
+    width: 100px; padding: 11px 12px; font-size: var(--fs-body); font-variant-numeric: tabular-nums;
     transition: border-color 0.16s var(--ease);
+    /* The host editor theme styles number inputs (grey fill + tiny 3px radius) with
+       !important, so we override fill/text/radius the same way and drop the spinner. */
+    -webkit-appearance: none; appearance: none; -moz-appearance: textfield;
+    border-radius: var(--r2) !important;
+    background-color: var(--z800) !important;
+    color: var(--z300) !important; -webkit-text-fill-color: var(--z300) !important;
+    border: 1px solid var(--z700) !important;
 }
-.mo-dur-num:hover { border-color: var(--z600); }
-.mo-dur-num:focus { outline: none; border-color: var(--accent); }
+.mo-dur-num::-webkit-inner-spin-button, .mo-dur-num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.mo-dur-num:hover { border-color: var(--z600) !important; }
+.mo-dur-num:focus { outline: none; border-color: var(--accent) !important; }
 .mo-unit { color: var(--z500); font-size: var(--fs-body); }
 
 .mo-apply {
