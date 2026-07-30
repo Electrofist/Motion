@@ -629,13 +629,47 @@ define(function (require, exports, module) {
         if (!$panel[0] || !document.body.contains($panel[0])) { $panel.appendTo("body"); }
         renderGallery(); refreshSelMeta(); updateSelbar();
         showGallery();
-        // show via class (keeps display:flex) + replay the entrance animation
-        $panel.removeClass("mo-open mo-hidden");
-        if ($panel[0]) { void $panel[0].offsetWidth; }
-        $panel.addClass("mo-open");
+        $panel.removeClass("mo-hidden");
+        restorePos(); // apply the last dragged position, if any
     }
-    function closePanel() { clearTrial(); $panel.addClass("mo-hidden").removeClass("mo-open"); }
+    function closePanel() { clearTrial(); $panel.addClass("mo-hidden"); }
     function togglePanel() { if ($panel.is(":visible")) { closePanel(); } else { openPanel(); } }
+
+    // ── Drag to reposition (header is the handle) so the panel can be moved off the
+    //    element you're animating. Position persists across sessions.
+    var POS_KEY = "motion.panelPos";
+    function applyPos(pos) {
+        if (!pos || pos.left == null) { return; }
+        var w = $panel.outerWidth() || 340, h = $panel.outerHeight() || 400;
+        $panel.css({
+            left: clamp(pos.left, 4, Math.max(4, window.innerWidth - w - 4)) + "px",
+            top: clamp(pos.top, 4, Math.max(4, window.innerHeight - h - 4)) + "px",
+            right: "auto"
+        });
+    }
+    function restorePos() { try { applyPos(JSON.parse(localStorage.getItem(POS_KEY))); } catch (e) { /* ignore */ } }
+    var drag = null;
+    $panel.on("mousedown", ".mo-header", function (e) {
+        if ($(e.target).closest("button, a, input, select").length) { return; } // controls still work
+        var r = $panel[0].getBoundingClientRect();
+        drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+        $panel.addClass("mo-dragging");
+        e.preventDefault();
+    });
+    $(document).on("mousemove.motion", function (e) {
+        if (!drag) { return; }
+        var w = $panel.outerWidth(), h = $panel.outerHeight();
+        $panel.css({
+            left: clamp(e.clientX - drag.dx, 4, window.innerWidth - w - 4) + "px",
+            top: clamp(e.clientY - drag.dy, 4, window.innerHeight - h - 4) + "px",
+            right: "auto"
+        });
+    });
+    $(document).on("mouseup.motion", function () {
+        if (!drag) { return; }
+        drag = null; $panel.removeClass("mo-dragging");
+        try { localStorage.setItem(POS_KEY, JSON.stringify({ left: parseInt($panel.css("left"), 10), top: parseInt($panel.css("top"), 10) })); } catch (e) { /* ignore */ }
+    });
 
     // events
     $panel.on("click", ".mo-close", function (e) { e.preventDefault(); closePanel(); });
