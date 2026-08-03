@@ -425,6 +425,45 @@ define(function (require, exports, module) {
         flash("Reset — cleared Motion animations (" + count + " edit" + (count > 1 ? "s" : "") + ").");
     }
 
+    // Remove Motion's classes from ONLY the selected element (leaves the managed
+    // <style> block; Reset clears everything). Incremental edit to keep ids in sync.
+    function removeFromElement() {
+        var sel = resolveSelection();
+        if (!sel) { flash("Click an element in the Live Preview first."); return; }
+        var m = sel.openTag.match(/(\sclass\s*=\s*)("([^"]*)"|'([^']*)'|([^\s"'>]+))/i);
+        var val = m ? (m[3] != null ? m[3] : (m[4] != null ? m[4] : m[5])) : "";
+        if (!m || !val.split(/\s+/).some(isMoClass)) { flash("No Motion animation on <" + sel.tag + ">."); return; }
+        var kept = stripMotionClasses(val, MO_CLASSES);
+        var quote = m[2].charAt(0) === "'" ? "'" : '"';
+        var newOpen = sel.openTag.replace(m[0], kept ? m[1] + quote + kept + quote : "");
+        try {
+            sel.doc.batchOperation(function () {
+                sel.doc.replaceRange(newOpen, sel.from, advancePos(sel.from, sel.openTag));
+            });
+        } catch (e) { flash("Couldn't edit this file (is it writable?)."); return; }
+        clearTrial();
+        flash("Removed Motion from <" + sel.tag + ">.");
+        refreshSelMeta();
+        updateSelbar();
+    }
+
+    // Copy text to the clipboard (async API with an execCommand fallback).
+    function copyText(text) {
+        try {
+            if (window.navigator && navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text);
+                return true;
+            }
+        } catch (e) { /* fall through */ }
+        try {
+            var ta = document.createElement("textarea");
+            ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+            document.body.appendChild(ta); ta.select(); document.execCommand("copy");
+            document.body.removeChild(ta);
+            return true;
+        } catch (e2) { return false; }
+    }
+
     // Insert or update the managed <style id="motion-animations"> block in <head>.
     function ensureStyleBlock(doc, css) {
         var text = doc.getText();
@@ -577,6 +616,10 @@ define(function (require, exports, module) {
             '<div class="mo-field mo-field-inline">' +
             '  <label class="mo-field-label">Loop</label>' +
             '  <button type="button" class="mo-switch' + (isLoop ? " on" : "") + '" role="switch" aria-checked="' + isLoop + '" aria-label="Loop animation"><span class="mo-switch-knob"></span></button>' +
+            '</div>' +
+            '<div class="mo-actions">' +
+            '  <button type="button" class="mo-copy" title="Copy the generated CSS to the clipboard">Copy CSS</button>' +
+            '  <button type="button" class="mo-remove" title="Remove Motion from the selected element">Remove</button>' +
             '</div>' +
             '<button class="mo-apply">Apply ' + a.label + '</button>'
         );
@@ -785,6 +828,14 @@ define(function (require, exports, module) {
         var a = animById(ui.selected);
         if (a) { applyAnimation(a, currentOpts()); }
     });
+    $panel.on("click", ".mo-copy", function () {
+        var a = animById(ui.selected);
+        if (!a) { return; }
+        var css = animCss(a, currentOpts());
+        var ok = copyText(css.keyframes + "\n" + css.rule);
+        flash(ok ? "Copied CSS to clipboard." : "Couldn't access the clipboard.");
+    });
+    $panel.on("click", ".mo-remove", function () { removeFromElement(); });
 
     // toolbar button
     var $btn = $('<a href="#" id="motion-toolbar-btn" title="Motion" aria-label="Motion">✦</a>');

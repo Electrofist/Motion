@@ -224,6 +224,16 @@
 .mo-apply:active { transform: translateY(1px); }
 .mo-apply:disabled { background: var(--z800); color: var(--z500); cursor: not-allowed; }
 
+/* Secondary actions: Copy CSS / Remove */
+.mo-actions { display: flex; gap: var(--s2); }
+.mo-copy, .mo-remove {
+    flex: 1 1 0; padding: 9px; border: 1px solid var(--z700); border-radius: var(--r2);
+    background: var(--z800); color: var(--z300); cursor: pointer; font-size: var(--fs-body); font-weight: 600;
+    transition: border-color 0.16s var(--ease), color 0.16s var(--ease);
+}
+.mo-copy:hover { border-color: var(--accent); color: var(--white); }
+.mo-remove:hover { border-color: var(--danger); color: var(--danger); }
+
 /* ── Gallery (the primary content) ──────────────────── */
 /* Gallery is the single scroll region; header/context/controls stay pinned.
    No top padding: sticky .mo-cat headers stick flush so scrolled tiles pass
