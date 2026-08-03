@@ -176,6 +176,17 @@ define(function (require, exports, module) {
     function speedToDur(v) { return Math.round(DUR_MAX - (v / 100) * (DUR_MAX - DUR_MIN)); }
     function durToSpeed(d) { return clamp(Math.round((DUR_MAX - d) / (DUR_MAX - DUR_MIN) * 100), 0, 100); }
 
+    // Format a [x1,y1,x2,y2] control-point array as a cubic-bezier() string (2 dp).
+    function bezierToStr(b) {
+        function r(n) { return String(Math.round(n * 100) / 100); }
+        return "cubic-bezier(" + r(b[0]) + "," + r(b[1]) + "," + r(b[2]) + "," + r(b[3]) + ")";
+    }
+    // Parse a cubic-bezier(...) string back to [x1,y1,x2,y2], or null if not one.
+    function bezierParse(s) {
+        var m = /cubic-bezier\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/.exec(s || "");
+        return m ? [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3]), parseFloat(m[4])] : null;
+    }
+
     // Return the opening tag up to the first ">" that is OUTSIDE any quoted
     // attribute value (a naive indexOf(">") splits <a title="x>y" class="c">).
     function sliceOpenTag(text) {
@@ -544,8 +555,9 @@ define(function (require, exports, module) {
     // ============================================================
     //  Panel UI
     // ============================================================
-    var ui = { view: "gallery", selected: null, sel: null, selMeta: null, duration: 600, delay: 0, loop: null, easing: DEFAULT_EASE, trigger: "load" };
+    var ui = { view: "gallery", selected: null, sel: null, selMeta: null, duration: 600, delay: 0, loop: null, easing: DEFAULT_EASE, trigger: "load", customBezier: [0.25, 0.1, 0.25, 1] };
     var DELAY_MAX = 5000;
+    var CUSTOM_EASE = "__custom__"; // sentinel menu value for the curve editor
     // DUR_MIN/DUR_MAX, clamp, speedToDur, durToSpeed live in the PURE-HELPERS block above.
 
     var $panel = $(
@@ -574,14 +586,48 @@ define(function (require, exports, module) {
     // Per-animation settings, laid out as stacked full-width fields (label above the
     // control) with a large segmented Trigger, a prominent Speed slider, an editable
     // Duration and an Easing select. Generous vertical rhythm.
+    // Cubic-bezier editor: unit square mapped to a 100px box at PAD=10; y flipped
+    // (SVG y points down). x clamped to [0,1]; y allowed to overshoot for springs.
+    function bezierEditorHtml() {
+        return '<svg class="mo-curve" viewBox="0 -30 120 160" width="100%" height="150" aria-label="Easing curve editor">' +
+            '<rect class="mo-curve-box" x="10" y="10" width="100" height="100" rx="4"/>' +
+            '<line class="mo-curve-diag" x1="10" y1="110" x2="110" y2="10"/>' +
+            '<line class="mo-curve-guide" data-g="1"/>' +
+            '<line class="mo-curve-guide" data-g="2"/>' +
+            '<path class="mo-curve-path"/>' +
+            '<circle class="mo-curve-anchor" cx="10" cy="110" r="2.5"/>' +
+            '<circle class="mo-curve-anchor" cx="110" cy="10" r="2.5"/>' +
+            '<circle class="mo-curve-h" data-h="0" r="6"/>' +
+            '<circle class="mo-curve-h" data-h="2" r="6"/>' +
+            '</svg>' +
+            '<div class="mo-curve-val"></div>';
+    }
+    function bzX(x) { return 10 + x * 100; }
+    function bzY(y) { return 10 + (1 - y) * 100; }
+    function updateCurve() {
+        var $svg = $panel.find(".mo-curve");
+        if (!$svg.length) { return; }
+        var b = ui.customBezier;
+        var p1x = bzX(b[0]), p1y = bzY(b[1]), p2x = bzX(b[2]), p2y = bzY(b[3]);
+        $svg.find(".mo-curve-path").attr("d", "M10,110 C" + p1x + "," + p1y + " " + p2x + "," + p2y + " 110,10");
+        $svg.find('.mo-curve-guide[data-g="1"]').attr({ x1: 10, y1: 110, x2: p1x, y2: p1y });
+        $svg.find('.mo-curve-guide[data-g="2"]').attr({ x1: 110, y1: 10, x2: p2x, y2: p2y });
+        $svg.find('.mo-curve-h[data-h="0"]').attr({ cx: p1x, cy: p1y });
+        $svg.find('.mo-curve-h[data-h="2"]').attr({ cx: p2x, cy: p2y });
+        $panel.find(".mo-curve-val").text(bezierToStr(b));
+    }
+
     function renderSettings() {
         var a = animById(ui.selected);
         if (!a) { return; }
         var seg = TRIGGERS.map(function (t) {
             return '<button class="mo-seg-btn' + (t.v === ui.trigger ? " on" : "") + '" data-trg="' + t.v + '" title="' + t.hint + '">' + t.label + '</button>';
         }).join("");
-        var curEase = EASINGS.filter(function (e) { return e.v === ui.easing; })[0] || EASINGS[0];
-        var easeItems = EASINGS.map(function (e) { var on = e.v === ui.easing; return '<button type="button" role="option" aria-selected="' + on + '" class="mo-menu-item' + (on ? " on" : "") + '" data-ease="' + e.v + '">' + e.label + '</button>'; }).join("");
+        var presetEase = EASINGS.filter(function (e) { return e.v === ui.easing; })[0];
+        var isCustom = !presetEase;
+        var easeLabel = isCustom ? "Custom curve" : presetEase.label;
+        var easeItems = EASINGS.map(function (e) { var on = e.v === ui.easing; return '<button type="button" role="option" aria-selected="' + on + '" class="mo-menu-item' + (on ? " on" : "") + '" data-ease="' + e.v + '">' + e.label + '</button>'; }).join("")
+            + '<button type="button" role="option" aria-selected="' + isCustom + '" class="mo-menu-item' + (isCustom ? " on" : "") + '" data-ease="' + CUSTOM_EASE + '">Custom curve…</button>';
         var isLoop = (ui.loop != null) ? ui.loop : !!ATTENTION[a.id];
         $panel.find(".mo-settings").html(
             '<div class="mo-set-head">' +
@@ -601,9 +647,10 @@ define(function (require, exports, module) {
             '<div class="mo-field">' +
             '  <label class="mo-field-label">Easing</label>' +
             '  <div class="mo-select">' +
-            '    <button type="button" class="mo-select-btn" aria-haspopup="listbox" aria-expanded="false"><span class="mo-select-label">' + curEase.label + '</span><span class="mo-select-caret" aria-hidden="true">▾</span></button>' +
+            '    <button type="button" class="mo-select-btn" aria-haspopup="listbox" aria-expanded="false"><span class="mo-select-label">' + easeLabel + '</span><span class="mo-select-caret" aria-hidden="true">▾</span></button>' +
             '    <div class="mo-menu" role="listbox" aria-label="Easing">' + easeItems + '</div>' +
             '  </div>' +
+            '  <div class="mo-bezier' + (isCustom ? "" : " mo-hide") + '">' + bezierEditorHtml() + '</div>' +
             '</div>' +
             '<div class="mo-field">' +
             '  <label class="mo-field-label">Duration</label>' +
@@ -623,6 +670,7 @@ define(function (require, exports, module) {
             '</div>' +
             '<button class="mo-apply">Apply ' + a.label + '</button>'
         );
+        updateCurve(); // position the curve editor if custom easing is active
     }
     function tileHtml(a) {
         return '<button class="mo-tile" data-anim="' + a.id + '" title="' + a.label + '">' +
@@ -784,15 +832,40 @@ define(function (require, exports, module) {
     });
     $panel.on("click", ".mo-menu-item", function (e) {
         e.preventDefault(); e.stopPropagation();
-        ui.easing = $(this).attr("data-ease");
+        var val = $(this).attr("data-ease");
+        var custom = (val === CUSTOM_EASE);
+        // Custom curve → use the current control-point value and reveal the editor.
+        ui.easing = custom ? bezierToStr(ui.customBezier) : val;
         var $s = $(this).closest(".mo-select");
-        $s.find(".mo-select-label").text($(this).text());
+        $s.find(".mo-select-label").text(custom ? "Custom curve" : $(this).text());
         $s.find(".mo-menu-item").removeClass("on").attr("aria-selected", "false");
         $(this).addClass("on").attr("aria-selected", "true");
+        $panel.find(".mo-bezier").toggleClass("mo-hide", !custom);
+        if (custom) { updateCurve(); }
         closeEaseMenu();
         trialSelected();
     });
     $panel.on("click", function (e) { if (!$(e.target).closest(".mo-select").length) { closeEaseMenu(); } });
+
+    // Cubic-bezier curve dragging (handles map pointer position back to bezier coords).
+    var curveDrag = null;
+    $panel.on("mousedown", ".mo-curve-h", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        curveDrag = { idx: +$(this).attr("data-h"), svg: this.ownerSVGElement };
+    });
+    $(document).on("mousemove.motion", function (e) {
+        if (!curveDrag || !curveDrag.svg) { return; }
+        var pt = curveDrag.svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+        var m = curveDrag.svg.getScreenCTM(); if (!m) { return; }
+        var loc = pt.matrixTransform(m.inverse());
+        ui.customBezier[curveDrag.idx] = clamp((loc.x - 10) / 100, 0, 1);
+        ui.customBezier[curveDrag.idx + 1] = clamp(1 - (loc.y - 10) / 100, -0.3, 1.3);
+        ui.easing = bezierToStr(ui.customBezier);
+        $panel.find(".mo-select-label").text("Custom curve");
+        updateCurve();
+        trialSelected();
+    });
+    $(document).on("mouseup.motion", function () { curveDrag = null; });
     function syncSpeedReadout() { $panel.find(".mo-field-val").text(ui.duration + " ms"); }
     $panel.on("input", ".mo-speed", function () {
         ui.duration = speedToDur(+this.value);

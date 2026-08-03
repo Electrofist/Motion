@@ -13,7 +13,7 @@ if (open < 0 || close < 0) { console.error("FATAL: PURE-HELPERS sentinels not fo
 const region = SRC.slice(SRC.indexOf("\n", open) + 1, SRC.lastIndexOf("\n", close));
 
 const RETURN = "\nreturn { mergeClass, animCss, mergeStyleBody, sliceOpenTag, advancePos, " +
-    "stripMotionClasses, clamp, speedToDur, durToSpeed, DEFAULT_EASE, EASINGS, DUR_MIN, DUR_MAX };";
+    "stripMotionClasses, clamp, speedToDur, durToSpeed, bezierToStr, bezierParse, DEFAULT_EASE, EASINGS, DUR_MIN, DUR_MAX };";
 const api = new Function("CLASS_PREFIX", "ATTENTION", region + RETURN)(
     "mo-", { pulse: 1, shake: 1, float: 1, spin: 1 }
 );
@@ -21,7 +21,7 @@ const api = new Function("CLASS_PREFIX", "ATTENTION", region + RETURN)(
 // Fail fast if the region didn't export something (turns a lazy ReferenceError-at-call
 // into an explicit harness failure).
 ["mergeClass", "animCss", "mergeStyleBody", "sliceOpenTag", "advancePos", "stripMotionClasses",
- "clamp", "speedToDur", "durToSpeed"].forEach(function (n) {
+ "clamp", "speedToDur", "durToSpeed", "bezierToStr", "bezierParse"].forEach(function (n) {
     if (typeof api[n] !== "function") { console.error("FATAL: missing pure fn " + n); process.exit(2); }
 });
 if (typeof api.DEFAULT_EASE !== "string" || !Array.isArray(api.EASINGS)) { console.error("FATAL: missing EASINGS/DEFAULT_EASE"); process.exit(2); }
@@ -124,6 +124,13 @@ eq("clamp within", api.clamp(3, 0, 5), 3);
 // ---- EASINGS invariants ----
 ok("EASINGS default-first", api.EASINGS[0].v === api.DEFAULT_EASE);
 eq("EASINGS length", api.EASINGS.length, 6);
+
+// ---- cubic-bezier helpers ----
+eq("bezierToStr basic", api.bezierToStr([0.25, 0.1, 0.25, 1]), "cubic-bezier(0.25,0.1,0.25,1)");
+eq("bezierToStr rounds to 2dp", api.bezierToStr([0.166, 1.234, 0.3, 0.999]), "cubic-bezier(0.17,1.23,0.3,1)");
+eq("bezierParse round-trips", api.bezierToStr(api.bezierParse("cubic-bezier(.34,1.56,.64,1)")), "cubic-bezier(0.34,1.56,0.64,1)");
+ok("bezierParse handles spaces", JSON.stringify(api.bezierParse("cubic-bezier(0.16, 1, 0.3, 1)")) === JSON.stringify([0.16, 1, 0.3, 1]));
+eq("bezierParse rejects non-bezier", api.bezierParse("ease-out"), null);
 
 // ---- catalog integrity: every animation is fully wired (id + glyph + hover rule) ----
 const CSS = fs.readFileSync(path.join(__dirname, "..", "style.css"), "utf8");

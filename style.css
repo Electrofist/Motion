@@ -118,8 +118,7 @@
 .mo-field-label { color: var(--z300); font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
 
 /* ── Per-animation settings — stacked, spacious (Canva-style) ── */
-.mo-settings { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px var(--s4) var(--s4); display: flex; flex-direction: column; gap: var(--s5); animation: mo-view-in 0.2s var(--ease) both; }
-@keyframes mo-view-in { from { opacity: 0; transform: translateX(6px); } to { opacity: 1; transform: none; } }
+.mo-settings { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px var(--s4) var(--s4); display: flex; flex-direction: column; gap: var(--s5); }
 .mo-settings::-webkit-scrollbar { width: 10px; }
 .mo-settings::-webkit-scrollbar-thumb { background: var(--z700); border: 3px solid var(--z900); border-radius: 8px; }
 
@@ -179,6 +178,19 @@
 }
 .mo-menu-item:hover { background: var(--z700); }
 .mo-menu-item.on { color: var(--accent); font-weight: 600; }
+
+/* Cubic-bezier curve editor */
+.mo-bezier { margin-top: 12px; }
+.mo-curve { display: block; touch-action: none; overflow: visible; }
+.mo-curve-box { fill: var(--z950); stroke: var(--z700); stroke-width: 1; }
+.mo-curve-diag { stroke: var(--z700); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.5; }
+.mo-curve-guide { stroke: var(--z600); stroke-width: 1.5; }
+.mo-curve-path { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+.mo-curve-anchor { fill: var(--z500); }
+.mo-curve-h { fill: var(--accent); stroke: var(--z900); stroke-width: 2; cursor: grab; }
+.mo-curve-h:hover { fill: var(--accent-strong); }
+.mo-curve-h:active { cursor: grabbing; }
+.mo-curve-val { margin-top: 7px; text-align: center; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--z400); }
 
 /* Duration / Delay number fields */
 .mo-dur-row { display: flex; align-items: center; gap: 9px; }
