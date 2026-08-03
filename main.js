@@ -458,21 +458,29 @@ define(function (require, exports, module) {
         updateSelbar();
     }
 
-    // Copy text to the clipboard (async API with an execCommand fallback).
-    function copyText(text) {
-        try {
-            if (window.navigator && navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text);
-                return true;
-            }
-        } catch (e) { /* fall through */ }
+    // Synchronous execCommand fallback for the clipboard. Returns true on success.
+    function execCopy(text) {
         try {
             var ta = document.createElement("textarea");
             ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
-            document.body.appendChild(ta); ta.select(); document.execCommand("copy");
+            document.body.appendChild(ta); ta.select(); var ok = document.execCommand("copy");
             document.body.removeChild(ta);
-            return true;
-        } catch (e2) { return false; }
+            return !!ok;
+        } catch (e) { return false; }
+    }
+    // Copy text to the clipboard. Always resolves to a boolean success so the
+    // caller reports the real outcome — the async clipboard API can reject
+    // (non-secure context, denied permission), in which case we fall back to
+    // execCommand rather than falsely claiming success.
+    function copyText(text) {
+        try {
+            if (window.navigator && navigator.clipboard && navigator.clipboard.writeText) {
+                return navigator.clipboard.writeText(text)
+                    .then(function () { return true; })
+                    .catch(function () { return execCopy(text); });
+            }
+        } catch (e) { /* fall through */ }
+        return $.Deferred().resolve(execCopy(text)).promise();
     }
 
     // Insert or update the managed <style id="motion-animations"> block in <head>.
@@ -555,6 +563,18 @@ define(function (require, exports, module) {
     // ============================================================
     //  Panel UI
     // ============================================================
+    // Idempotent teardown: if a previous instance is live (e.g. after a hot
+    // reload), drop its document-level ".motion" handlers and stray DOM so we
+    // don't end up with duplicated listeners, panels, or toolbar buttons.
+    try {
+        $(document).off(".motion");
+        $("#motion-panel").remove();
+        $("#motion-toolbar-btn").remove();
+        if (LiveDevMB && LiveDevMB.EVENT_LIVE_PREVIEW_CLICKED) {
+            LiveDevMB.off(LiveDevMB.EVENT_LIVE_PREVIEW_CLICKED + ".motion");
+        }
+    } catch (e) { /* first load — nothing to tear down */ }
+
     var ui = { view: "gallery", selected: null, sel: null, selMeta: null, duration: 600, delay: 0, loop: null, easing: DEFAULT_EASE, trigger: "load", customBezier: [0.25, 0.1, 0.25, 1] };
     var DELAY_MAX = 5000;
     var CUSTOM_EASE = "__custom__"; // sentinel menu value for the curve editor
@@ -740,6 +760,13 @@ define(function (require, exports, module) {
     }
     function showSettings(id) {
         ui.view = "settings";
+        // Seed duration from the animation's own natural timing when opening a
+        // different animation, so e.g. Float shows its 3000ms rather than a stale
+        // value from a previously-tuned one. Re-opening the same one keeps tweaks.
+        if (id !== ui.selected) {
+            var seed = animById(id);
+            if (seed && seed.dur) { ui.duration = clamp(seed.dur, DUR_MIN, DUR_MAX); }
+        }
         ui.selected = id;
         renderSettings();
         updateApplyState();
@@ -905,8 +932,9 @@ define(function (require, exports, module) {
         var a = animById(ui.selected);
         if (!a) { return; }
         var css = animCss(a, currentOpts());
-        var ok = copyText(css.keyframes + "\n" + css.rule);
-        flash(ok ? "Copied CSS to clipboard." : "Couldn't access the clipboard.");
+        Promise.resolve(copyText(css.keyframes + "\n" + css.rule)).then(function (ok) {
+            flash(ok ? "Copied CSS to clipboard." : "Couldn't access the clipboard.");
+        });
     });
     $panel.on("click", ".mo-remove", function () { removeFromElement(); });
 

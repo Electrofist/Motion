@@ -23,8 +23,12 @@ Not a runtime. Not a lock-in. Just the animation you wanted, written into your f
 
 - **Visual apply from the Live Preview** — select any element and animate it in place
 - **Live trial** — hover an animation to preview it on the selected element before committing
-- **12 animations** — Fade Up / In / Down, Slide Left / Right, Zoom In, Pop, Bounce In (entrance) and Pulse, Shake, Float, Spin (attention)
-- **Full control** — duration, easing, and trigger: **on load**, **on scroll** (into view), or **on hover**
+- **18 animations** — Fade In / Up / Down, Slide Left / Right, Zoom In, Pop, Bounce In, Flip In, Roll In, Blur In (entrance) and Pulse, Shake, Float, Spin, Wobble, Heartbeat, Tada (emphasis)
+- **Full control** — duration, **delay**, easing, a **loop** toggle, and trigger: **on load**, **on scroll** (into view), or **on hover**
+- **Custom easing** — a draggable **cubic-bézier curve editor** for springs and custom timing
+- **Copy CSS** — grab the generated `@keyframes` + rule for the clipboard anytime
+- **Remove** — strip Motion from a single element, or **Reset** to clear the whole file
+- **Draggable panel** — move it out of the way of whatever you're animating; it remembers where you left it
 - **Clean output** — merges into existing classes, dedupes keyframes, and keeps everything in one managed `<style>` block
 
 ## How it works
@@ -54,9 +58,9 @@ Or load it manually: copy this folder into your Phoenix user-extensions director
 ## Usage
 
 1. Open an HTML file and turn on **Live Preview**.
-2. Click the element you want to animate (in the preview or the code).
-3. Click the **✦ Motion** button in the toolbar.
-4. Set duration / easing / trigger, then click an animation. Done.
+2. Click the **✦ Motion** button in the toolbar (drag the panel by its header to reposition it).
+3. Click the element you want to animate in the Live Preview — the panel shows what's selected.
+4. Pick an animation, tune trigger / speed / easing / delay / loop, then **Apply**. Use **Copy CSS** to export, or **Remove** to undo on that element.
 
 ## Development
 
@@ -72,9 +76,9 @@ The animation catalog and the pure CSS/HTML helpers live at the top of `main.js`
 ## Roadmap
 
 - Explicit click-to-select with an on-preview highlight of the target
-- More animations + richer gallery previews
-- Per-element timing (stagger, delay) and scroll-linked effects
-- Save applied animations as reusable presets
+- Stagger across a multi-element selection (cascade reveals)
+- Save applied configs as reusable presets / favorites
+- `prefers-reduced-motion` fallbacks in the emitted CSS
 
 ## License
 
