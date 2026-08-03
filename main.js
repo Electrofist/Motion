@@ -230,10 +230,13 @@ define(function (require, exports, module) {
         var dur = opts.duration || anim.dur;
         var easing = opts.easing || DEFAULT_EASE;
         var trigger = opts.trigger || "load";
+        var delay = (opts.delay > 0) ? (" " + opts.delay + "ms") : "";
+        // loop override: opts.loop wins if set, else the animation's natural loop.
+        var loop = (opts.loop != null) ? !!opts.loop : !!ATTENTION[anim.id];
         var kfName = "mo-kf-" + anim.id;
         var cls = "." + CLASS_PREFIX + anim.id;
-        var shorthand = kfName + " " + dur + "ms " + easing + " both";
-        var iteration = ATTENTION[anim.id] ? " infinite" : "";
+        var shorthand = kfName + " " + dur + "ms " + easing + delay + " both";
+        var iteration = loop ? " infinite" : "";
         var kf = "@keyframes " + kfName + " " + anim.frames;
         var rule;
         if (trigger === "hover") {
@@ -488,11 +491,13 @@ define(function (require, exports, module) {
         if (!sel) { return; }
         var css = animCss(anim, opts);
         var id = sel.tagId != null ? sel.tagId : (sel.mark ? sel.mark.tagID : "");
+        // Preview respects the loop override; delay is skipped so the preview is instant.
+        var loop = (opts.loop != null) ? !!opts.loop : !!ATTENTION[anim.id];
         // Clear the class from ALL elements first, so only the current target previews.
         var js = '(function(){var l=document.querySelectorAll(".__mo-trial");for(var i=0;i<l.length;i++){l[i].classList.remove("__mo-trial");}' +
             'var el=document.querySelector(\'[data-brackets-id="' + id + '"]\');' +
             'if(!el)return;var s=document.getElementById("mo-trial")||document.createElement("style");s.id="mo-trial";' +
-            's.textContent=' + JSON.stringify(css.keyframes + "\n.__mo-trial{animation:mo-kf-" + anim.id + " " + (opts.duration || anim.dur) + "ms " + (opts.easing || DEFAULT_EASE) + " both" + (ATTENTION[anim.id] ? " infinite" : "") + "}") + ';' +
+            's.textContent=' + JSON.stringify(css.keyframes + "\n.__mo-trial{animation:mo-kf-" + anim.id + " " + (opts.duration || anim.dur) + "ms " + (opts.easing || DEFAULT_EASE) + " both" + (loop ? " infinite" : "") + "}") + ';' +
             'document.head.appendChild(s);el.classList.remove("__mo-trial");void el.offsetWidth;el.classList.add("__mo-trial");})();';
         try { LiveDevProtocol.evaluate(js); } catch (e) { /* ignore */ }
     }
@@ -500,7 +505,8 @@ define(function (require, exports, module) {
     // ============================================================
     //  Panel UI
     // ============================================================
-    var ui = { view: "gallery", selected: null, sel: null, selMeta: null, duration: 600, easing: DEFAULT_EASE, trigger: "load" };
+    var ui = { view: "gallery", selected: null, sel: null, selMeta: null, duration: 600, delay: 0, loop: null, easing: DEFAULT_EASE, trigger: "load" };
+    var DELAY_MAX = 5000;
     // DUR_MIN/DUR_MAX, clamp, speedToDur, durToSpeed live in the PURE-HELPERS block above.
 
     var $panel = $(
@@ -537,6 +543,7 @@ define(function (require, exports, module) {
         }).join("");
         var curEase = EASINGS.filter(function (e) { return e.v === ui.easing; })[0] || EASINGS[0];
         var easeItems = EASINGS.map(function (e) { var on = e.v === ui.easing; return '<button type="button" role="option" aria-selected="' + on + '" class="mo-menu-item' + (on ? " on" : "") + '" data-ease="' + e.v + '">' + e.label + '</button>'; }).join("");
+        var isLoop = (ui.loop != null) ? ui.loop : !!ATTENTION[a.id];
         $panel.find(".mo-settings").html(
             '<div class="mo-set-head">' +
             '  <button class="mo-back" title="Back to gallery" aria-label="Back to gallery">‹</button>' +
@@ -562,6 +569,14 @@ define(function (require, exports, module) {
             '<div class="mo-field">' +
             '  <label class="mo-field-label">Duration</label>' +
             '  <div class="mo-dur-row"><input type="number" class="mo-dur-num" min="' + DUR_MIN + '" max="' + DUR_MAX + '" step="10" value="' + ui.duration + '"><span class="mo-unit">ms</span></div>' +
+            '</div>' +
+            '<div class="mo-field">' +
+            '  <label class="mo-field-label">Delay</label>' +
+            '  <div class="mo-dur-row"><input type="number" class="mo-delay-num" min="0" max="' + DELAY_MAX + '" step="50" value="' + ui.delay + '"><span class="mo-unit">ms</span></div>' +
+            '</div>' +
+            '<div class="mo-field mo-field-inline">' +
+            '  <label class="mo-field-label">Loop</label>' +
+            '  <button type="button" class="mo-switch' + (isLoop ? " on" : "") + '" role="switch" aria-checked="' + isLoop + '" aria-label="Loop animation"><span class="mo-switch-knob"></span></button>' +
             '</div>' +
             '<button class="mo-apply">Apply ' + a.label + '</button>'
         );
@@ -754,9 +769,21 @@ define(function (require, exports, module) {
         syncSpeedReadout();
         trialSelected();
     });
+    $panel.on("input", ".mo-delay-num", function () { ui.delay = clamp(+this.value || 0, 0, DELAY_MAX); });
+    $panel.on("change", ".mo-delay-num", function () {
+        ui.delay = clamp(+this.value || 0, 0, DELAY_MAX);
+        this.value = ui.delay;
+        trialSelected();
+    });
+    $panel.on("click", ".mo-switch", function () {
+        ui.loop = !$(this).hasClass("on");
+        $(this).toggleClass("on", ui.loop).attr("aria-checked", ui.loop ? "true" : "false");
+        trialSelected();
+    });
+    function currentOpts() { return { duration: ui.duration, delay: ui.delay, loop: ui.loop, easing: ui.easing, trigger: ui.trigger }; }
     $panel.on("click", ".mo-apply", function () {
         var a = animById(ui.selected);
-        if (a) { applyAnimation(a, { duration: ui.duration, easing: ui.easing, trigger: ui.trigger }); }
+        if (a) { applyAnimation(a, currentOpts()); }
     });
 
     // toolbar button

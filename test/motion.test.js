@@ -65,6 +65,14 @@ ok("animCss: scroll non-attention has no infinite", scroll.rule.indexOf("infinit
 ok("animCss: attention loops (load)", /infinite\}$/.test(api.animCss({ id: "pulse", dur: 900, frames: "{to{}}" }, { trigger: "load" }).rule));
 ok("animCss: attention + scroll → infinite in in-view", /\.in-view\{animation:[^}]*infinite\}/.test(api.animCss({ id: "pulse", dur: 900, frames: "{to{}}" }, { trigger: "scroll" }).rule));
 
+// ---- animCss: delay + loop ----
+ok("animCss: delay emits second time value", api.animCss({ id: "pop", dur: 450, frames: "{to{}}" }, { delay: 200 }).rule.indexOf("450ms " + api.DEFAULT_EASE + " 200ms both") !== -1);
+ok("animCss: no delay when 0", api.animCss({ id: "pop", dur: 450, frames: "{to{}}" }, { delay: 0 }).rule.indexOf("both") !== -1 && api.animCss({ id: "pop", dur: 450, frames: "{to{}}" }, { delay: 0 }).rule.indexOf("0ms both") === -1);
+ok("animCss: loop:true forces infinite", /infinite\}$/.test(api.animCss({ id: "pop", dur: 450, frames: "{to{}}" }, { loop: true }).rule));
+ok("animCss: loop:false overrides attention", api.animCss({ id: "pulse", dur: 900, frames: "{to{}}" }, { loop: false }).rule.indexOf("infinite") === -1);
+ok("animCss: loop unset → attention default", /infinite\}$/.test(api.animCss({ id: "pulse", dur: 900, frames: "{to{}}" }, {}).rule));
+ok("animCss: delay + loop together", /450ms .* 300ms both infinite\}$/.test(api.animCss({ id: "pop", dur: 450, frames: "{to{}}" }, { delay: 300, loop: true }).rule));
+
 // ---- mergeStyleBody ----
 const c1 = api.animCss({ id: "fade-up", dur: 600, frames: "{from{opacity:0}to{opacity:1}}" }, {});
 let body = api.mergeStyleBody("", c1);

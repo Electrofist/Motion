@@ -180,9 +180,9 @@
 .mo-menu-item:hover { background: var(--z700); }
 .mo-menu-item.on { color: var(--accent); font-weight: 600; }
 
-/* Duration */
+/* Duration / Delay number fields */
 .mo-dur-row { display: flex; align-items: center; gap: 9px; }
-.mo-dur-num {
+.mo-dur-num, .mo-delay-num {
     width: 100px; padding: 11px 12px; font-size: var(--fs-body); font-variant-numeric: tabular-nums;
     transition: border-color 0.16s var(--ease);
     /* The host editor theme styles number inputs (grey fill + tiny 3px radius) with
@@ -193,10 +193,24 @@
     color: var(--z300) !important; -webkit-text-fill-color: var(--z300) !important;
     border: 1px solid var(--z700) !important;
 }
-.mo-dur-num::-webkit-inner-spin-button, .mo-dur-num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.mo-dur-num:hover { border-color: var(--z600) !important; }
-.mo-dur-num:focus { outline: none; border-color: var(--accent) !important; }
+.mo-dur-num::-webkit-inner-spin-button, .mo-dur-num::-webkit-outer-spin-button,
+.mo-delay-num::-webkit-inner-spin-button, .mo-delay-num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.mo-dur-num:hover, .mo-delay-num:hover { border-color: var(--z600) !important; }
+.mo-dur-num:focus, .mo-delay-num:focus { outline: none; border-color: var(--accent) !important; }
 .mo-unit { color: var(--z500); font-size: var(--fs-body); }
+
+/* Loop toggle switch */
+.mo-field-inline { flex-direction: row; align-items: center; justify-content: space-between; }
+.mo-switch {
+    flex: 0 0 auto; width: 42px; height: 24px; border-radius: 999px; border: 1px solid var(--z700);
+    background: var(--z800); cursor: pointer; padding: 0; position: relative; transition: background 0.16s var(--ease), border-color 0.16s var(--ease);
+}
+.mo-switch-knob {
+    position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--z500); transition: transform 0.16s var(--ease), background 0.16s var(--ease);
+}
+.mo-switch.on { background: var(--accent-soft); border-color: var(--accent); }
+.mo-switch.on .mo-switch-knob { transform: translateX(18px); background: var(--accent); }
 
 .mo-apply {
     /* Sticky footer: always reachable even when the fields scroll. */
