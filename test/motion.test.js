@@ -117,5 +117,25 @@ eq("clamp within", api.clamp(3, 0, 5), 3);
 ok("EASINGS default-first", api.EASINGS[0].v === api.DEFAULT_EASE);
 eq("EASINGS length", api.EASINGS.length, 6);
 
+// ---- catalog integrity: every animation is fully wired (id + glyph + hover rule) ----
+const CSS = fs.readFileSync(path.join(__dirname, "..", "style.css"), "utf8");
+const animsBlock = SRC.slice(SRC.indexOf("var ANIMS = ["), SRC.indexOf("];", SRC.indexOf("var ANIMS = [")) + 2);
+const animIds = (animsBlock.match(/\bid:\s*"([\w-]+)"/g) || []).map(function (m) { return m.match(/"([\w-]+)"/)[1]; });
+const glyphsStart = SRC.indexOf("var GLYPHS = {");
+const glyphsBlock = SRC.slice(glyphsStart, SRC.indexOf("\n    };", glyphsStart));
+const glyphKeys = (glyphsBlock.match(/^\s{8}"([\w-]+)":/gm) || []).map(function (m) { return m.match(/"([\w-]+)"/)[1]; });
+
+ok("catalog: has animations", animIds.length >= 18, "got " + animIds.length);
+eq("catalog: unique ids", new Set(animIds).size, animIds.length);
+animIds.forEach(function (id) {
+    ok("glyph exists: " + id, glyphKeys.indexOf(id) !== -1);
+    ok("hover rule exists: " + id, CSS.indexOf('data-anim="' + id + '"') !== -1);
+});
+// every animation's frames body is well-formed CSS keyframes ({ ... })
+(animsBlock.match(/frames:\s*"(\{[^"]*\})"/g) || []).forEach(function (m, i) {
+    var f = m.match(/"(\{[^"]*\})"/)[1];
+    ok("frames well-formed: " + (animIds[i] || i), /^\{[\s\S]*\}$/.test(f) && f.indexOf("{", 1) !== -1);
+});
+
 console.log("\n" + pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);

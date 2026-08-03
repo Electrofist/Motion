@@ -257,6 +257,12 @@
 .mo-tile[data-anim="shake"]:hover  .mo-blk { animation: mo-p-shake .6s both; }
 .mo-tile[data-anim="float"]:hover  .mo-blk { animation: mo-p-float 2s ease-in-out infinite; }
 .mo-tile[data-anim="spin"]:hover   .mo-blk { animation: mo-p-spin 1s linear infinite; }
+.mo-tile[data-anim="flip-in"]:hover  .mo-blk { animation-name: mo-p-flip; }
+.mo-tile[data-anim="roll-in"]:hover  .mo-blk { animation-name: mo-p-roll; }
+.mo-tile[data-anim="blur-in"]:hover  .mo-blk { animation-name: mo-p-blurin; }
+.mo-tile[data-anim="wobble"]:hover .mo-blk { animation: mo-p-wobble .8s both; } /* impeccable-disable-line bounce-easing -- previews the user-selectable "Wobble" animation */
+.mo-tile[data-anim="heartbeat"]:hover .mo-blk { animation: mo-p-heart 1.1s ease-in-out infinite; }
+.mo-tile[data-anim="tada"]:hover   .mo-blk { animation: mo-p-tada .8s both; }
 @keyframes mo-p-fade { from{opacity:0} to{opacity:1} }
 @keyframes mo-p-up { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
 @keyframes mo-p-down { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:none} }
@@ -269,6 +275,12 @@
 @keyframes mo-p-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
 @keyframes mo-p-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
 @keyframes mo-p-spin { to{transform:rotate(360deg)} }
+@keyframes mo-p-flip { 0%{opacity:0;transform:perspective(90px) rotateX(70deg)} 100%{opacity:1;transform:perspective(90px) rotateX(0)} }
+@keyframes mo-p-roll { 0%{opacity:0;transform:translateX(-12px) rotate(-90deg)} 100%{opacity:1;transform:none} }
+@keyframes mo-p-blurin { 0%{opacity:0;filter:blur(4px)} 100%{opacity:1;filter:blur(0)} }
+@keyframes mo-p-wobble { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-4px) rotate(-6deg)} 40%{transform:translateX(3px) rotate(4deg)} 60%{transform:translateX(-2px) rotate(-2deg)} 80%{transform:translateX(1px) rotate(0)} }
+@keyframes mo-p-heart { 0%,28%,70%,100%{transform:scale(1)} 14%,42%{transform:scale(1.25)} }
+@keyframes mo-p-tada { 0%{transform:scale(1) rotate(0)} 30%,50%,70%,90%{transform:scale(1.12) rotate(4deg)} 40%,60%,80%{transform:scale(1.12) rotate(-4deg)} 100%{transform:scale(1) rotate(0)} }
 
 /* ── Status (transient feedback) ────────────────────── */
 .mo-status { padding: 8px var(--s4); font-size: var(--fs-body); color: var(--accent); min-height: 16px; border-top: 1px solid var(--z800); }

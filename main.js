@@ -46,9 +46,16 @@ define(function (require, exports, module) {
         { id: "pulse",      label: "Pulse",        cat: "attention", dur: 900, frames: "{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}" },
         { id: "shake",      label: "Shake",        cat: "attention", dur: 600, frames: "{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}" },
         { id: "float",      label: "Float",        cat: "attention", dur: 3000, frames: "{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}" },
-        { id: "spin",       label: "Spin",         cat: "attention", dur: 1200, frames: "{from{transform:rotate(0)}to{transform:rotate(360deg)}}" }
+        { id: "spin",       label: "Spin",         cat: "attention", dur: 1200, frames: "{from{transform:rotate(0)}to{transform:rotate(360deg)}}" },
+        { id: "flip-in",    label: "Flip In",      cat: "entrance", dur: 650, frames: "{0%{opacity:0;transform:perspective(420px) rotateX(80deg)}60%{opacity:1;transform:perspective(420px) rotateX(-12deg)}100%{transform:perspective(420px) rotateX(0)}}" },
+        { id: "roll-in",    label: "Roll In",      cat: "entrance", dur: 700, frames: "{0%{opacity:0;transform:translateX(-100%) rotate(-120deg)}100%{opacity:1;transform:translateX(0) rotate(0)}}" },
+        { id: "blur-in",    label: "Blur In",      cat: "entrance", dur: 600, frames: "{0%{opacity:0;filter:blur(12px)}100%{opacity:1;filter:blur(0)}}" },
+        { id: "wobble",     label: "Wobble",       cat: "attention", dur: 900, frames: "{0%,100%{transform:translateX(0)}15%{transform:translateX(-25%) rotate(-5deg)}30%{transform:translateX(20%) rotate(3deg)}45%{transform:translateX(-15%) rotate(-3deg)}60%{transform:translateX(10%) rotate(2deg)}75%{transform:translateX(-5%) rotate(-1deg)}}" },
+        { id: "heartbeat",  label: "Heartbeat",    cat: "attention", dur: 1300, frames: "{0%{transform:scale(1)}14%{transform:scale(1.3)}28%{transform:scale(1)}42%{transform:scale(1.3)}70%{transform:scale(1)}}" },
+        { id: "tada",       label: "Tada",         cat: "attention", dur: 900, frames: "{0%{transform:scale(1) rotate(0)}10%,20%{transform:scale(.9) rotate(-3deg)}30%,50%,70%,90%{transform:scale(1.1) rotate(3deg)}40%,60%,80%{transform:scale(1.1) rotate(-3deg)}100%{transform:scale(1) rotate(0)}}" }
     ];
-    var ATTENTION = { pulse: 1, shake: 1, float: 1, spin: 1 };
+    // Which animations loop continuously (animation-iteration-count: infinite).
+    var ATTENTION = { pulse: 1, shake: 1, float: 1, spin: 1, heartbeat: 1 };
     function animById(id) { for (var i = 0; i < ANIMS.length; i++) { if (ANIMS[i].id === id) { return ANIMS[i]; } } return null; }
     // Exact set of classes Motion may add — used by Reset to strip only our own classes.
     var MO_CLASSES = ANIMS.map(function (a) { return CLASS_PREFIX + a.id; });
@@ -115,7 +122,31 @@ define(function (require, exports, module) {
         "spin":
             '<rect class="mo-blk" x="16" y="16" width="12" height="12" rx="3" fill="currentColor"/>' +
             '<path d="M31 15a12 12 0 1 0 4 8" ' + A + '/>' +
-            '<path d="M35 14v6h-6" ' + A + '/>'
+            '<path d="M35 14v6h-6" ' + A + '/>',
+        "flip-in":
+            '<rect class="mo-blk" x="13" y="10" width="18" height="16" rx="3" fill="currentColor"/>' +
+            '<line x1="13" y1="18" x2="31" y2="18" stroke="var(--z900)" stroke-width="1.5" opacity=".45"/>' +
+            '<path d="M35 12c3 2.5 3 7.5 0 10" ' + A + ' opacity=".6"/>' +
+            '<path d="M35 22l-1-3m1 3l3-1" ' + A + ' opacity=".6"/>',
+        "roll-in":
+            '<rect class="mo-blk" x="18" y="16" width="14" height="14" rx="3" fill="currentColor"/>' +
+            '<path d="M10 33c-3-9 3-17 12-19" ' + A + ' opacity=".5"/>' +
+            '<path d="M22 12l-2 2m2-2l2 2" ' + A + ' opacity=".5"/>',
+        "blur-in":
+            '<rect x="11" y="11" width="22" height="22" rx="6" fill="currentColor" opacity=".16"/>' +
+            '<rect x="14" y="14" width="16" height="16" rx="4.5" fill="currentColor" opacity=".34"/>' +
+            '<rect class="mo-blk" x="16.5" y="16.5" width="11" height="11" rx="3" fill="currentColor"/>',
+        "wobble":
+            '<rect class="mo-blk" x="15" y="15" width="14" height="14" rx="3" fill="currentColor"/>' +
+            '<path d="M10 29q-4-7 0-14" ' + A + ' opacity=".55"/>' +
+            '<path d="M10 15l-2 3m2-3l3 1" ' + A + ' opacity=".55"/>' +
+            '<path d="M34 15q4 7 0 14" ' + A + ' opacity=".55"/>' +
+            '<path d="M34 29l2-3m-2 3l-3-1" ' + A + ' opacity=".55"/>',
+        "heartbeat":
+            '<path class="mo-blk" d="M22 30.5C11.5 22.5 8 18 11.5 14.2 14 11.5 18.7 12 22 15.6 25.3 12 30 11.5 32.5 14.2 36 18 32.5 22.5 22 30.5Z" fill="currentColor"/>',
+        "tada":
+            '<rect class="mo-blk" x="15" y="15" width="14" height="14" rx="3" fill="currentColor"/>' +
+            '<path d="M22 6v5M22 33v5M6 22h5M33 22h5M11 11l3.5 3.5M33 11l-3.5 3.5M11 33l3.5-3.5M33 33l-3.5-3.5" ' + A + ' opacity=".6"/>'
     };
     function glyphSvg(id) {
         return '<svg class="mo-glyph" viewBox="0 0 44 44" width="44" height="44" aria-hidden="true">' + (GLYPHS[id] || '') + '</svg>';
